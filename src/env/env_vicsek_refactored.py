@@ -1,25 +1,210 @@
 import numpy as np
 import gym
 from gym import spaces
-
+import logging
 import os
 
-from collections import namedtuple
 import numpy as np
-from math import sqrt
 from scipy.spatial import distance_matrix
 
 import matplotlib.pyplot as plt
 import matplotlib.patches as mpatches
 import matplotlib.animation as animation
-import imageio
 import matplotlib as mpl
+from enum import Enum, auto
+
 mpl.rc('figure', max_open_warning = 0)
+log = logging.getLogger(__name__)
 
-Point = namedtuple('Point', 'x, y')
+NUM_PEDESTRIANS = 10             # number of pedestrians
+WIDTH = 1.0
+HEIGHT = 1.0                     # geometry of environment space
+VISION_RADIUS = 0.2              # radius of catch by leader
+EXIT_RADIUS = 0.4
+EVACUATION_RADIUS = 0.01
+ALPHA = 3                        # parameter of gradient state
+STEP_SIZE = 0.01
+
+def is_distance_low(pedestrians_positions, destination, radius):
+    distances = distance_matrix(pedestrians_positions, np.expand_dims(destination, axis=0), 2)
+    return np.where(distances < radius, True, False).squeeze()
+
+class Agent:
+    start_position : np.ndarray
+    start_direction : np.ndarray
+    position : np.ndarray
+    direction : np.ndarray
+    
+    def __init__(self):
+        self.start_position = np.zeros(2, dtype=np.float32)
+        self.start_direction = np.zeros(2, dtype=np.float32)
+        
+    def reset(self):
+        self.position = self.start_position.copy()
+        self.direction = self.start_position.copy()
+
+class Status(Enum):
+    VISCEK = auto()
+    "Pedestrian under Viscek rules."
+
+    FOLLOWER = auto()
+    "Follower of the leader particle (agent)."
+
+    EXITING = auto()
+    "Pedestrian in exit zone."
+
+    ESCAPED = auto()
+    "Evacuated pedestrian."
+
+class Pedestrians:
+    num : int # number of pedestrians
+    
+    positions : np.ndarray
+    directions : np.ndarray
+    statuses : np.ndarray
+    
+    def __init__(self, num : int):
+        self.num = num
+
+    def reset(self):
+        self.positions = np.random.uniform(-1.0, 1.0, size=(self.num, 2))
+        self.directions = np.zeros((self.num, 2), dtype=np.float32)
+
+class SwitchDistance:
+    def __init__(self, to_leader, to_exit, to_escape):
+        self.to_leader = to_leader
+        self.to_exit = to_exit
+        self.to_escape = to_escape
+
+class Simulator:
+    def __init__(self, agent : Agent, pedestrians : Pedestrians,
+        switchdistance : SwitchDistance, step_size : float) -> None:
+
+        self.exit = np.array([0.0, -1.0], dtype=np.float32)
+        self.agent = agent
+        self.pedestrians = pedestrians
+        self.statuses = np.array([Status.VISCEK for _ in range(self.pedestrians.num)])
+        self.switchdistance = switchdistance
+        self.step_size = step_size
+
+    def reset(self):
+        reward = self.update_statuses(now = 0)
+
+    def update_statuses(self, now, agent_position, exit_position, switchdistance):
+        time_factor = 1 - now / (200 * self.num)
+        count_reward = 0
+
+        # Evacuated
+        condition = is_distance_low(self.positions, exit_position, switchdistance.to_escape)
+        new_statuses = np.where(condition, Status.ESCAPED, self.statuses)
+
+        # Exiting
+        exception_condition = np.logical_not(new_statuses == Status.ESCAPED)
+        condition = is_distance_low(self.positions, exit_position, switchdistance.to_exit) * exception_condition
+        new_statuses = np.where(condition, Status.EXITING, new_statuses)
+
+        num_new_exiting = sum(new_statuses == Status.EXITING) - sum(self.statuses == Status.EXITING)
+        count_reward += (15 + 10 * time_factor) * num_new_exiting
+        
+        # Caught
+        exception_condition = np.logical_not(np.logical_or(new_statuses == Status.ESCAPED, new_statuses == Status.EXITING))
+        condition = is_distance_low(self.positions, agent_position, self.vision_radius) * exception_condition
+        new_statuses = np.where(condition, Status.FOLLOWER, new_statuses)
+
+        num_new_followers = sum(new_statuses == Status.FOLLOWER) - sum(self.statuses == Status.FOLLOWER)
+        count_reward += (10 + 5 * time_factor) * num_new_followers
+
+        # Update statuses
+        self.statuses = new_statuses
+        return count_reward
+
+class Time:
+    def __init__(self, max_timesteps):
+        self.now = 0
+        self.max_timesteps = max_timesteps
+
+    def reset(self):
+        self.now = 0
+
+    def step(self):
+        self.now += 1
+        return self.now
+        
+    def terminated(self):
+        return self.now >= self.max_timesteps 
+
+class EvacuationEnv(gym.Env):
+    """
+    Evacuation Game Enviroment for Gym
+    Continious Action and Observation Space
+    """
+
+    def __init__(self, 
+        number_of_pedestrians = NUM_PEDESTRIANS,
+        vision_radius = VISION_RADIUS,
+        exit_radius = EXIT_RADIUS,
+        evacuation_radius = EVACUATION_RADIUS,
+        step_size = STEP_SIZE,
+        alpha = ALPHA
+        ) -> None:
+        super(EvacuationEnv, self).__init__()
+
+        # action and observation space
+        NUM_STATES = 6 # 14
+        NUM_ACTIONS = 2 
+        self.action_space = spaces.Box(low=-1, high=1, shape=(NUM_ACTIONS,), dtype=np.float32)
+        self.observation_space = spaces.Box(low=-1, high=1, shape=(NUM_STATES,), dtype=np.float32)
+
+        self.eps = np.finfo(np.float32).eps.item()
+
+        self.simulator = Simulator(
+            agent = Agent(),
+            pedestrians = Pedestrians(number_of_pedestrians),
+            switchdistance = SwitchDistance(to_leader=vision_radius, to_exit=exit_radius, to_escape=evacuation_radius), 
+            step_size = step_size)
+        
+        self.time = Time(200 * number_of_pedestrians)
+        self.reward = None
+        self.sum_distance = None
+        self.sum_distance_at_start = None
+
+    def reset(self):
+        self.time.reset()
+        self.agent.reset()
+        self.pedestrians.reset()
+
+    def step(self, action):
+        episode_reward = 0
+        now = self.time.step()
+
+        # Agent perform movement
+        # Pedestrians move
+        # Agent gains reward
+
+        # Check termination condition
+        game_over = False
+
+        if self.simulator.if_all_pedestrians_saved:
+            # Termination due to all pedestrians saved
+            game_over = True
+            episode_reward += self.reward.all_pedestrians_saved()
+
+        if self.time.terminated():  # (self.h + self.w) * self.N_pedestrians:
+            # Termination due to finished time
+            game_over = True
+            episode_reward += self.reward.no_time_left()
+            
+        state = self.simulator.get_state()
+        return state, episode_reward, game_over, {}
+
+    def close(self):
+        pass
+
+    def render(self):
+        pass
 
 
-class GameEnv(gym.Env):
+class OLDGameEnv(gym.Env):
     """
     Evacuation Game Enviroment for Gym
     Continious Action and Observation Space
@@ -31,7 +216,7 @@ class GameEnv(gym.Env):
                 VISION_RADIUS=0.2,              # radius of catch by leader
                 ALPHA = 3,                      # parameter of gradient state
                 STEP_SIZE = 0.01):  # 0.1       # step_size
-        super(GameEnv, self).__init__()
+        super(OLDGameEnv, self).__init__()
 
         # action and observation space
         NUM_STATES = 6 # 14
