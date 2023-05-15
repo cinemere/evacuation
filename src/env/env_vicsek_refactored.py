@@ -56,6 +56,7 @@ class Status(Enum):
     ESCAPED = auto()
     "Evacuated pedestrian."
 
+
 class Pedestrians:
     num : int # number of pedestrians
     

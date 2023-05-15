@@ -14,6 +14,8 @@ from enum import Enum, auto
 
 import constants as const
 
+from typing import Tuple
+
 class UserEnum(Enum):
     @classmethod
     def all(cls):
@@ -36,6 +38,7 @@ class SwitchDistances:
     to_leader = const.SWITCH_DISTANCE_TO_LEADER
     to_exit   = const.SWITCH_DISTANCE_TO_EXIT
     to_escape = const.SWITCH_DISTANCE_TO_ESCAPE
+    to_pedestrian = const.SWITCH_DISTANCE_TO_OTHER_PEDESTRIAN
 
 
 def is_distance_low(pedestrians_positions, destination, radius):
@@ -44,6 +47,7 @@ def is_distance_low(pedestrians_positions, destination, radius):
 
 
 def update_statuses(statuses, pedestrian_positions, agent_position, exit_position):
+
     condition = is_distance_low(
         pedestrian_positions, agent_position, SwitchDistances.to_leader)
     statuses[condition] = Status.FOLLOWER
@@ -77,16 +81,20 @@ class Pedestrians:
         self.num = num
 
     def reset(self, agent_position, exit_position):
-        self.positions = np.random.uniform(-1.0, 1.0, size=(self.num, 2))
-        self.directions = np.zeros((self.num, 2), dtype=np.float32)
-
+        self.positions  = np.random.uniform(-1.0, 1.0, size=(self.num, 2))
+        self.directions = np.random.uniform(-1.0, 1.0, size=(self.num, 2))
+        self.normirate_directions()
         self.statuses = np.array([Status.VISCEK for _ in range(self.num)])
         self.statuses = update_statuses(
             self.statuses,
             self.positions,
             agent_position,
             exit_position
-        ) 
+        )
+    
+    def normirate_directions(self) -> None:
+        x = self.directions
+        self.directions = (x.T / np.linalg.norm(x, axis=1)).T
 
 
 class Agent:
@@ -102,7 +110,6 @@ class Agent:
     def reset(self):
         self.position = self.start_position.copy()
         self.direction = self.start_position.copy()
-
 
 class Exit:
     position : np.ndarray
@@ -139,15 +146,88 @@ class Area:
     def reset(self):
         pass
 
-    def step(self, pedestrian_positions, pedestrian_directions):
-        
-        corrected_pedestrian_positions = pedestrian_positions
-        corrected_pedestrian_directions = pedestrian_directions
+    def pedestrians_step(self, pedestrians : Pedestrians, agent : Agent) -> Tuple[Pedestrians, bool, float]:
 
-        return (
-            corrected_pedestrian_positions,
-            corrected_pedestrian_directions
-        )
+        termination, reward = False, 0
+
+        escaped = pedestrians.statuses == Status.ESCAPED
+        pedestrians.positions[escaped] = self.exit.position
+
+        exiting = pedestrians.statuses == Status.EXITING
+        if not any(exiting):
+            vec2exit = self.exit.position - pedestrians.positions[exiting]
+            len2exit = np.linalg.norm(vec2exit, axis=1)
+            vec_size = np.minimum(len2exit, self.step_size)
+            vec2exit = (vec2exit.T / len2exit * vec_size).T # TODO do we really need this transpose?
+            pedestrians.positions[exiting] += vec2exit
+
+        following = pedestrians.statuses == Status.FOLLOWER
+        pedestrians.directions[following] = agent.direction
+
+        viscek = pedestrians.statuses == Status.VISCEK
+        fv = np.logical_or(following, viscek)
+        fv_directions = pedestrians.directions[fv]
+
+        dm = distance_matrix(pedestrians.positions[viscek], 
+                             pedestrians.positions[fv], 2)
+        
+        intersection = np.where(dm < SwitchDistances.to_pedestrian, 1, 0)
+        n_intersections = np.maximum(1, intersection.sum(axis=1))
+
+        # pedestrians.normirate_directions()
+        fv_directions = (fv_directions.T / np.linalg.norm(fv_directions, axis=1)).T 
+        
+        v_directions_x = (intersection * fv_directions[:, 0]).sum(axis=1) / n_intersections
+        v_directions_y = (intersection * fv_directions[:, 1]).sum(axis=1) / n_intersections
+        v_directions = np.concatenate((v_directions_x[np.newaxis, :], 
+                                       v_directions_y[np.newaxis, :])).T
+        
+        randomization = (np.random.rand(sum(viscek), 2) - 0.5) * 2 * self.step_size / 2
+        v_directions += randomization
+        v_directions = (v_directions.T / np.linalg.norm(v_directions, axis=1)).T
+        
+        pedestrians.directions[viscek] = v_directions * self.step_size
+        pedestrians.positions[fv] += pedestrians.directions[fv] 
+
+        clipped = np.clip(pedestrians.positions, 
+                    [-self.width, -self.height], [self.width, self.height])
+        miss = pedestrians.positions - clipped
+
+        pedestrians.positions -= 2 * miss
+
+        pedestrians.directions *= np.where(miss!=0, -1, 1) #/ self.step_size
+
+        return pedestrians
+
+    def agent_step(self, action : list, agent : Agent) -> Tuple[Agent, bool, float]:
+        """
+        Perform agent step:
+            1. Read & preprocess action
+            2. Check wall collision
+            3. Return (updated agent, termination, reward)
+        """
+        action = np.array(action)
+        np.clip(action, -1, 1, out=action)
+        agent.direction = self.step_size * action
+        
+        if not self._if_wall_collision(agent):
+            agent.position += agent.direction
+            print(agent.position, agent.direction)
+            return agent, False, 0.
+        else:
+            return agent, True, -5.
+
+    def _if_wall_collision(self, agent : Agent):
+        pt = agent.position + agent.direction
+
+        left  = pt[0] < -self.width
+        right = pt[0] > self.width
+        down  = pt[1] < -self.height  
+        up    = pt[1] > self.height
+        
+        if left or right or down or up:
+            return True
+        return False
 
 
 class EvacuationEnv(gym.Env):
@@ -178,8 +258,17 @@ class EvacuationEnv(gym.Env):
         self.pedestrians.reset(agent_position=self.agent.position,
                                exit_position=self.area.exit.position)
 
-    def step(self):
-        pass
+    def step(self, action : list):
+        self.time.step()
+        self.agent, termination, episode_reward_agent = self.area.agent_step(action, self.agent)
+        self.pedestrians = self.area.pedestrians_step(self.pedestrians, self.agent)
+        self.pedestrians.statuses = update_statuses(
+            statuses=self.pedestrians.statuses,
+            pedestrian_positions=self.pedestrians.positions,
+            agent_position=self.agent.position,
+            exit_position=self.area.exit.position
+        )
+        # TODO get reward
 
     def render(self):
         fig, ax = plt.subplots(figsize=(5, 5))
@@ -221,6 +310,9 @@ class EvacuationEnv(gym.Env):
             ax.plot(self.pedestrians.positions[selected_pedestrians, 0], 
                     self.pedestrians.positions[selected_pedestrians, 1],
                 lw=0, marker='.', color=color)
+            # for i in range(self.pedestrians.directions.shape[0]):
+            #     ax.plot(self.pedestrians.positions[i],
+            #     self.pedestrians.positions[i] + self.pedestrians.directions[i])
 
         # Draw agent
         ax.plot(agent_coordinates[0], agent_coordinates[1], marker='+', color='red')
@@ -251,4 +343,15 @@ e = EvacuationEnv(number_of_pedestrians=100)
 e.reset()
 # %%
 e.render()
+# %%
+e.step([1, 0])
+# %%
+e.render()
+
+# %%
+from time import sleep
+for i in range(150):
+    e.step([np.sin(i*0.1), np.cos(i*0.1)])
+    e.render()
+    sleep(0.1)
 # %%

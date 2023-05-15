@@ -5,6 +5,7 @@ ALPHA = 3                           # parameter of gradient state
 STEP_SIZE = 0.01
 
 SWITCH_DISTANCE_TO_LEADER = 0.2     # radius of catch by leader
+SWITCH_DISTANCE_TO_OTHER_PEDESTRIAN = SWITCH_DISTANCE_TO_LEADER
 SWITCH_DISTANCE_TO_EXIT   = 0.4
 SWITCH_DISTANCE_TO_ESCAPE = 0.01
 
