@@ -160,6 +160,7 @@ class Area:
             vec_size = np.minimum(len2exit, self.step_size)
             vec2exit = (vec2exit.T / len2exit * vec_size).T # TODO do we really need this transpose?
             pedestrians.positions[exiting] += vec2exit
+            # TODO check direction
 
         following = pedestrians.statuses == Status.FOLLOWER
         pedestrians.directions[following] = agent.direction
@@ -168,7 +169,7 @@ class Area:
         fv = np.logical_or(following, viscek)
         fv_directions = pedestrians.directions[fv]
 
-        dm = distance_matrix(pedestrians.positions[viscek], 
+        dm = distance_matrix(pedestrians.positions[viscek], # add exitors
                              pedestrians.positions[fv], 2)
         
         intersection = np.where(dm < SwitchDistances.to_pedestrian, 1, 0)
@@ -181,21 +182,25 @@ class Area:
         v_directions_y = (intersection * fv_directions[:, 1]).sum(axis=1) / n_intersections
         v_directions = np.concatenate((v_directions_x[np.newaxis, :], 
                                        v_directions_y[np.newaxis, :])).T
-        
-        randomization = (np.random.rand(sum(viscek), 2) - 0.5) * 2 * self.step_size / 2
-        v_directions += randomization
         v_directions = (v_directions.T / np.linalg.norm(v_directions, axis=1)).T
         
+        eps = 1e-8 # TODO add to constants
+        noise_coef = 0.2
+
+        randomization = (np.random.rand(sum(viscek), 2) - 0.5) * 2 * self.step_size# norm distribution! TODO
+        randomization = (randomization.T / (np.linalg.norm(randomization, axis=1) + eps)).T
+        
+        v_directions = (v_directions + noise_coef * randomization) #/ (1 + noise_coef)
+        v_directions = (v_directions.T / np.linalg.norm(v_directions, axis=1)).T
+
         pedestrians.directions[viscek] = v_directions * self.step_size
         pedestrians.positions[fv] += pedestrians.directions[fv] 
 
         clipped = np.clip(pedestrians.positions, 
                     [-self.width, -self.height], [self.width, self.height])
         miss = pedestrians.positions - clipped
-
         pedestrians.positions -= 2 * miss
-
-        pedestrians.directions *= np.where(miss!=0, -1, 1) #/ self.step_size
+        pedestrians.directions *= np.where(miss!=0, -1, 1)
 
         return pedestrians
 
