@@ -10,11 +10,12 @@ import matplotlib.pyplot as plt
 import matplotlib.patches as mpatches
 import matplotlib.animation as animation
 import matplotlib as mpl
+from functools import reduce
 from enum import Enum, auto
 
 import constants as const
 
-from typing import Tuple
+from typing import Tuple, List
 
 class UserEnum(Enum):
     @classmethod
@@ -63,6 +64,7 @@ def update_statuses(statuses, pedestrian_positions, agent_position, exit_positio
 
 
 def count_new_statuses(old_statuses, new_statuses):
+    """Get number of pedestrians, who have updated their status"""
     count = {}
     for status in Status.all():
         count[status] = sum(
@@ -76,7 +78,8 @@ class Pedestrians:
     positions : np.ndarray
     directions : np.ndarray
     statuses : np.ndarray
-    
+    memory : List[np.ndarray]
+
     def __init__(self, num : int):
         self.num = num
 
@@ -91,11 +94,15 @@ class Pedestrians:
             agent_position,
             exit_position
         )
+        self.memory = {'positions' : [], 'statuses' : []}
     
     def normirate_directions(self) -> None:
         x = self.directions
         self.directions = (x.T / np.linalg.norm(x, axis=1)).T
 
+    def save_positions(self):
+        self.memory['positions'].append(self.positions.copy())
+        self.memory['statuses'].append(self.statuses.copy())
 
 class Agent:
     start_position : np.ndarray
@@ -151,50 +158,66 @@ class Area:
         termination, reward = False, 0
 
         escaped = pedestrians.statuses == Status.ESCAPED
+        pedestrians.directions[escaped] = 0
         pedestrians.positions[escaped] = self.exit.position
 
         exiting = pedestrians.statuses == Status.EXITING
-        if not any(exiting):
+        if any(exiting):
             vec2exit = self.exit.position - pedestrians.positions[exiting]
             len2exit = np.linalg.norm(vec2exit, axis=1)
             vec_size = np.minimum(len2exit, self.step_size)
-            vec2exit = (vec2exit.T / len2exit * vec_size).T # TODO do we really need this transpose?
-            pedestrians.positions[exiting] += vec2exit
-            # TODO check direction
+            vec2exit = (vec2exit.T / len2exit * vec_size).T
+            pedestrians.directions[exiting] = vec2exit
+            # pedestrians.positions[exiting] += vec2exit #uncomment
 
         following = pedestrians.statuses == Status.FOLLOWER
         pedestrians.directions[following] = agent.direction
 
         viscek = pedestrians.statuses == Status.VISCEK
-        fv = np.logical_or(following, viscek)
-        fv_directions = pedestrians.directions[fv]
+        # fv = np.logical_or(following, viscek) #uncomment begin
+        # fv_directions = pedestrians.directions[fv]
+        # dm = distance_matrix(pedestrians.positions[viscek], # add exitors
+        #                      pedestrians.positions[fv], 2)
+        # intersection = np.where(dm < SwitchDistances.to_pedestrian, 1, 0)
+        # n_intersections = np.maximum(1, intersection.sum(axis=1))
+        # # pedestrians.normirate_directions()
+        # fv_directions = (fv_directions.T / np.linalg.norm(fv_directions, axis=1)).T 
+        # v_directions_x = (intersection * fv_directions[:, 0]).sum(axis=1) / n_intersections
+        # v_directions_y = (intersection * fv_directions[:, 1]).sum(axis=1) / n_intersections
+        # v_directions = np.concatenate((v_directions_x[np.newaxis, :], 
+        #                                v_directions_y[np.newaxis, :])).T
+        # v_directions = (v_directions.T / np.linalg.norm(v_directions, axis=1)).T #uncomment end
 
-        dm = distance_matrix(pedestrians.positions[viscek], # add exitors
-                             pedestrians.positions[fv], 2)
+        efv = reduce(np.logical_or, (exiting, following, viscek))
+        efv_directions = pedestrians.directions[efv]
+        dm = distance_matrix(pedestrians.positions[viscek],
+                             pedestrians.positions[efv], 2)
         
         intersection = np.where(dm < SwitchDistances.to_pedestrian, 1, 0)
         n_intersections = np.maximum(1, intersection.sum(axis=1))
 
         # pedestrians.normirate_directions()
-        fv_directions = (fv_directions.T / np.linalg.norm(fv_directions, axis=1)).T 
+        efv_directions = (efv_directions.T / np.linalg.norm(efv_directions, axis=1)).T 
         
-        v_directions_x = (intersection * fv_directions[:, 0]).sum(axis=1) / n_intersections
-        v_directions_y = (intersection * fv_directions[:, 1]).sum(axis=1) / n_intersections
+        v_directions_x = (intersection * efv_directions[:, 0]).sum(axis=1) / n_intersections
+        v_directions_y = (intersection * efv_directions[:, 1]).sum(axis=1) / n_intersections
         v_directions = np.concatenate((v_directions_x[np.newaxis, :], 
                                        v_directions_y[np.newaxis, :])).T
         v_directions = (v_directions.T / np.linalg.norm(v_directions, axis=1)).T
+
         
         eps = 1e-8 # TODO add to constants
         noise_coef = 0.2
 
-        randomization = (np.random.rand(sum(viscek), 2) - 0.5) * 2 * self.step_size# norm distribution! TODO
+        # randomization = (np.random.rand(sum(viscek), 2) - 0.5) * 2 * self.step_size  # norm distribution! TODO
+        randomization = np.random.normal(loc=0.0, scale=self.step_size, size=(sum(viscek), 2))
         randomization = (randomization.T / (np.linalg.norm(randomization, axis=1) + eps)).T
         
         v_directions = (v_directions + noise_coef * randomization) #/ (1 + noise_coef)
         v_directions = (v_directions.T / np.linalg.norm(v_directions, axis=1)).T
 
         pedestrians.directions[viscek] = v_directions * self.step_size
-        pedestrians.positions[fv] += pedestrians.directions[fv] 
+        pedestrians.positions[efv] += pedestrians.directions[efv] 
 
         clipped = np.clip(pedestrians.positions, 
                     [-self.width, -self.height], [self.width, self.height])
@@ -262,6 +285,7 @@ class EvacuationEnv(gym.Env):
         self.agent.reset()
         self.pedestrians.reset(agent_position=self.agent.position,
                                exit_position=self.area.exit.position)
+        self.pedestrians.save_positions()
 
     def step(self, action : list):
         self.time.step()
@@ -273,6 +297,7 @@ class EvacuationEnv(gym.Env):
             agent_position=self.agent.position,
             exit_position=self.area.exit.position
         )
+        self.pedestrians.save_positions()
         # TODO get reward
 
     def render(self):
@@ -329,14 +354,57 @@ class EvacuationEnv(gym.Env):
             -self.area.width, self.area.width, color='grey')
         plt.vlines([self.area.width, -self.area.width], 
             -self.area.height, self.area.height, color='grey')
-        # plt.axhline(-self.area.height, -self.area.width, self.area.width, color='grey')
-        # plt.axvline(self.area.width, -self.area.height, self.area.height, color='grey')
-        # plt.axvline(-self.area.width, -self.area.height, self.area.height, color='grey')
 
         plt.tight_layout()
         plt.title(f"Simulation area. Timesteps: {self.time.now}")
         plt.savefig('test.png')
         plt.show()
+
+    def save_animation(self):
+        
+        fig, ax = plt.subplots(figsize=(5, 5))
+
+        exit_coordinates = (self.area.exit.position[0], self.area.exit.position[1])
+        agent_coordinates = (self.agent.position[0], self.agent.position[1])
+
+        # Draw exiting zone
+        exiting_zone = mpatches.Wedge(
+            exit_coordinates, 
+            SwitchDistances.to_exit, 
+            0, 180, alpha = 0.2, color='green'
+        )
+        ax.add_patch(exiting_zone)
+
+        # Draw escaping zone
+        escaping_zone = mpatches.Wedge(
+            exit_coordinates, 
+            SwitchDistances.to_escape, 
+            0, 180, color='white'
+        )
+        ax.add_patch(escaping_zone)
+        
+        # Draw exit
+        ax.plot(exit_coordinates[0], exit_coordinates[1], marker='X', color='green')
+        
+        # Draw pedestrians
+        pedestrian_position_plots = {}
+        for status in Status.all():
+            selected_pedestrians = self.pedestrians.memory['statuses'][0] == status
+            color = next(ax._get_lines.prop_cycler)['color']
+            pedestrian_position_plots[status] = \
+                ax.plot(self.pedestrians.memory['positions'][0][selected_pedestrians, 0], 
+                self.pedestrians.memory['positions'][0][selected_pedestrians, 1],
+                lw=0, marker='.', color=color)[0]
+
+        def update(i):
+            for status in Status.all():
+                selected_pedestrians = self.pedestrians.memory['statuses'][i] == status
+                pedestrian_position_plots[status].set_xdata(self.pedestrians.memory['positions'][i][selected_pedestrians, 0])
+                pedestrian_position_plots[status].set_ydata(self.pedestrians.memory['positions'][i][selected_pedestrians, 1])
+                 
+        ani = animation.FuncAnimation(fig=fig, func=update, frames=self.time.now, interval=20)
+        # plt.show()
+        ani.save(filename='test.gif', writer='pillow')
 
     def close(self):
         pass
@@ -347,16 +415,22 @@ e = EvacuationEnv(number_of_pedestrians=100)
 # %%
 e.reset()
 # %%
-e.render()
+# e.render()
 # %%
 e.step([1, 0])
 # %%
-e.render()
+# e.render()
 
 # %%
 from time import sleep
-for i in range(150):
+for i in range(250):
     e.step([np.sin(i*0.1), np.cos(i*0.1)])
-    e.render()
-    sleep(0.1)
+    # e.render()
+    # sleep(0.1)
+# %%
+e.save_animation()
+# %%
+len(e.pedestrians.memory)
+# %%
+e.time.now
 # %%
