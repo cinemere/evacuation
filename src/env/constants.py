@@ -10,3 +10,9 @@ SWITCH_DISTANCE_TO_EXIT   = 0.4
 SWITCH_DISTANCE_TO_ESCAPE = 0.01
 
 MAX_TIMESTEPS = int(10e3)
+
+EPS = 1e-8 
+NOISE_COEF = 0.2                    # randomization in viscek model
+
+SAVE_PATH_GIFF = 'saved_data/giff'
+SAVE_PATH_PNG  = 'saved_data/png'

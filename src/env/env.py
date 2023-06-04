@@ -1,4 +1,4 @@
-# %%
+import os
 import numpy as np
 import gym
 from gym import spaces
@@ -15,7 +15,7 @@ from enum import Enum, auto
 
 import constants as const
 
-from typing import Tuple, List
+from typing import Tuple, List, Dict
 
 class UserEnum(Enum):
     @classmethod
@@ -78,7 +78,7 @@ class Pedestrians:
     positions : np.ndarray
     directions : np.ndarray
     statuses : np.ndarray
-    memory : List[np.ndarray]
+    memory : Dict[str, List[np.ndarray]]
 
     def __init__(self, num : int):
         self.num = num
@@ -100,7 +100,7 @@ class Pedestrians:
         x = self.directions
         self.directions = (x.T / np.linalg.norm(x, axis=1)).T
 
-    def save_positions(self):
+    def save(self):
         self.memory['positions'].append(self.positions.copy())
         self.memory['statuses'].append(self.statuses.copy())
 
@@ -109,7 +109,8 @@ class Agent:
     start_direction : np.ndarray
     position : np.ndarray
     direction : np.ndarray
-    
+    memory : Dict[str, List[np.ndarray]]
+
     def __init__(self):
         self.start_position = np.zeros(2, dtype=np.float32)
         self.start_direction = np.zeros(2, dtype=np.float32)
@@ -117,6 +118,10 @@ class Agent:
     def reset(self):
         self.position = self.start_position.copy()
         self.direction = self.start_position.copy()
+        self.memory = {'position' : []}
+
+    def save(self):
+        self.memory['position'].append(self.position.copy())
 
 class Exit:
     position : np.ndarray
@@ -205,15 +210,11 @@ class Area:
                                        v_directions_y[np.newaxis, :])).T
         v_directions = (v_directions.T / np.linalg.norm(v_directions, axis=1)).T
 
-        
-        eps = 1e-8 # TODO add to constants
-        noise_coef = 0.2
-
         # randomization = (np.random.rand(sum(viscek), 2) - 0.5) * 2 * self.step_size  # norm distribution! TODO
         randomization = np.random.normal(loc=0.0, scale=self.step_size, size=(sum(viscek), 2))
-        randomization = (randomization.T / (np.linalg.norm(randomization, axis=1) + eps)).T
+        randomization = (randomization.T / (np.linalg.norm(randomization, axis=1) + const.EPS)).T
         
-        v_directions = (v_directions + noise_coef * randomization) #/ (1 + noise_coef)
+        v_directions = (v_directions + const.NOISE_COEF * randomization) #/ (1 + const.NOISE_COEF)
         v_directions = (v_directions.T / np.linalg.norm(v_directions, axis=1)).T
 
         pedestrians.directions[viscek] = v_directions * self.step_size
@@ -268,11 +269,14 @@ class EvacuationEnv(gym.Env):
     def __init__(self, 
         render_mode=None,
         number_of_pedestrians = const.NUM_PEDESTRIANS,
+        experiment_name='test'
         ) -> None:
         super(EvacuationEnv, self).__init__()
             
         assert render_mode is None or render_mode in self.metadata["render_modes"]
         self.render_mode = render_mode
+
+        self.experiment_name = experiment_name
 
         self.area = Area()
         self.agent = Agent()
@@ -285,7 +289,7 @@ class EvacuationEnv(gym.Env):
         self.agent.reset()
         self.pedestrians.reset(agent_position=self.agent.position,
                                exit_position=self.area.exit.position)
-        self.pedestrians.save_positions()
+        self.pedestrians.save()
 
     def step(self, action : list):
         self.time.step()
@@ -297,7 +301,9 @@ class EvacuationEnv(gym.Env):
             agent_position=self.agent.position,
             exit_position=self.area.exit.position
         )
-        self.pedestrians.save_positions()
+        self.pedestrians.save()
+        self.agent.save()
+
         # TODO get reward
 
     def render(self):
@@ -349,23 +355,34 @@ class EvacuationEnv(gym.Env):
 
         plt.xlim([ -1.1 * self.area.width, 1.1 * self.area.width])
         plt.ylim([ -1.1 * self.area.height, 1.1 * self.area.height])
-
+        plt.xticks([]); plt.yticks([])
         plt.hlines([self.area.height, -self.area.height], 
-            -self.area.width, self.area.width, color='grey')
+            -self.area.width, self.area.width, linestyle='--', color='grey')
         plt.vlines([self.area.width, -self.area.width], 
-            -self.area.height, self.area.height, color='grey')
+            -self.area.height, self.area.height, linestyle='--', color='grey')
+
+        plt.title(f"{self.experiment_name}. Timesteps: {self.time.now}")
 
         plt.tight_layout()
-        plt.title(f"Simulation area. Timesteps: {self.time.now}")
-        plt.savefig('test.png')
+        if not os.path.exists(const.SAVE_PATH_PNG): os.makedirs(const.SAVE_PATH_PNG)
+        plt.savefig(os.path.join(const.SAVE_PATH_PNG, f'{self.experiment_name}.png'))
         plt.show()
 
     def save_animation(self):
         
         fig, ax = plt.subplots(figsize=(5, 5))
 
+        plt.title(f"{self.experiment_name}")
+        plt.hlines([self.area.height, -self.area.height], 
+            -self.area.width, self.area.width, linestyle='--', color='grey')
+        plt.vlines([self.area.width, -self.area.width], 
+            -self.area.height, self.area.height, linestyle='--',  color='grey')
+        plt.xlim([ -1.1 * self.area.width, 1.1 * self.area.width])
+        plt.ylim([ -1.1 * self.area.height, 1.1 * self.area.height])
+        plt.xticks([]); plt.yticks([])
+
         exit_coordinates = (self.area.exit.position[0], self.area.exit.position[1])
-        agent_coordinates = (self.agent.position[0], self.agent.position[1])
+        agent_coordinates = (self.agent.memory['position'][0][0], self.agent.memory['position'][0][1])
 
         # Draw exiting zone
         exiting_zone = mpatches.Wedge(
@@ -374,6 +391,14 @@ class EvacuationEnv(gym.Env):
             0, 180, alpha = 0.2, color='green'
         )
         ax.add_patch(exiting_zone)
+
+        # Draw following zone
+        following_zone = mpatches.Wedge(
+            agent_coordinates, 
+            SwitchDistances.to_leader, 
+            0, 360, alpha=0.1, color='blue'
+        )
+        following_zone_plots = ax.add_patch(following_zone)
 
         # Draw escaping zone
         escaping_zone = mpatches.Wedge(
@@ -396,41 +421,37 @@ class EvacuationEnv(gym.Env):
                 self.pedestrians.memory['positions'][0][selected_pedestrians, 1],
                 lw=0, marker='.', color=color)[0]
 
+        # Draw agent
+        agent_position_plot = ax.plot(agent_coordinates[0], agent_coordinates[1], marker='+', color='red')[0]
+
         def update(i):
+
+            agent_coordinates = (self.agent.memory['position'][i][0], self.agent.memory['position'][i][1])
+            following_zone_plots.set_center(agent_coordinates)
+
             for status in Status.all():
                 selected_pedestrians = self.pedestrians.memory['statuses'][i] == status
                 pedestrian_position_plots[status].set_xdata(self.pedestrians.memory['positions'][i][selected_pedestrians, 0])
                 pedestrian_position_plots[status].set_ydata(self.pedestrians.memory['positions'][i][selected_pedestrians, 1])
                  
+            # agent_position_plot.set_xdata(agent_coordinates[0])
+            # agent_position_plot.set_ydata(agent_coordinates[1])
+            agent_position_plot.set_data(agent_coordinates)
+
         ani = animation.FuncAnimation(fig=fig, func=update, frames=self.time.now, interval=20)
-        # plt.show()
-        ani.save(filename='test.gif', writer='pillow')
+        
+        if not os.path.exists(const.SAVE_PATH_GIFF): os.makedirs(const.SAVE_PATH_GIFF)
+        ani.save(filename=os.path.join(const.SAVE_PATH_GIFF, f'{self.experiment_name}.gif'), writer='pillow')
 
     def close(self):
         pass
 
-# %%
-e = EvacuationEnv(number_of_pedestrians=100)
+# e = EvacuationEnv(number_of_pedestrians=100)
 
-# %%
-e.reset()
-# %%
-# e.render()
-# %%
-e.step([1, 0])
-# %%
-# e.render()
+# e.reset()
+# e.step([1, 0])
 
-# %%
-from time import sleep
-for i in range(250):
-    e.step([np.sin(i*0.1), np.cos(i*0.1)])
-    # e.render()
-    # sleep(0.1)
-# %%
-e.save_animation()
-# %%
-len(e.pedestrians.memory)
-# %%
-e.time.now
-# %%
+# for i in range(50):
+#     e.step([np.sin(i*0.1), np.cos(i*0.1)])
+# e.save_animation()
+# e.render()
