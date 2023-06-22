@@ -1,8 +1,7 @@
+.vscode/
+
 venv/
 
 __pycache__/
 
-.logs
-
-*.giff
-*.png
+saved_data/

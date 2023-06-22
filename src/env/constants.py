@@ -16,3 +16,7 @@ NOISE_COEF = 0.2                    # randomization in viscek model
 
 SAVE_PATH_GIFF = 'saved_data/giff'
 SAVE_PATH_PNG  = 'saved_data/png'
+SAVE_PATH_LOGS = 'saved_data/logs'
+
+from datetime import datetime
+NOW = datetime.now().strftime(f"%d-%b-%H-%M-%S")
