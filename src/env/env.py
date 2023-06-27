@@ -3,7 +3,7 @@ import os
 import numpy as np
 import gym
 from gym import spaces
-import logging; log = logging.getLogger(__name__) # TODO set up logger !!!
+import logging; log = logging.getLogger(__name__)
 
 from scipy.spatial import distance_matrix
 
