@@ -1,7 +1,7 @@
 # ## %%
 import os
 import numpy as np
-import gym
+import gymnasium as gym
 from gym import spaces
 import logging; log = logging.getLogger(__name__)
 
@@ -14,7 +14,7 @@ import matplotlib as mpl
 from functools import reduce
 from enum import Enum, auto
 
-from env import constants as const
+from src.env import constants as const
 
 from typing import Tuple, List, Dict
 
@@ -22,7 +22,7 @@ def setup_logging(verbose, experiment_name):
     logs_folder = const.SAVE_PATH_LOGS
     if not os.path.exists(logs_folder): os.makedirs(logs_folder)
 
-    logs_filename = os.path.join(logs_folder, f"logs_{experiment_name}_{const.NOW}.log")
+    logs_filename = os.path.join(logs_folder, f"logs_{experiment_name}.log")
 
     logging.basicConfig(
         filename=logs_filename, filemode="w",
@@ -197,6 +197,7 @@ def grad_potential_pedestrians(agent: Agent, pedestrians: Pedestrians, alpha: fl
         grad = grad.sum(axis = 0)
     else:
         grad = np.zeros(2)
+    return grad
 
 
 def grad_potential_exit(agent: Agent, pedestrians: Pedestrians, exit: Exit, alpha: float):
@@ -222,9 +223,6 @@ class Area:
         pass
 
     def pedestrians_step(self, pedestrians : Pedestrians, agent : Agent) -> Tuple[Pedestrians, bool, float]:
-
-        termination, reward = False, 0
-
         escaped = pedestrians.statuses == Status.ESCAPED
         pedestrians.directions[escaped] = 0
         pedestrians.positions[escaped] = self.exit.position
@@ -333,7 +331,8 @@ class EvacuationEnv(gym.Env):
         number_of_pedestrians = const.NUM_PEDESTRIANS,
         experiment_name='test',
         verbose=False,
-        draw=False
+        draw=False,
+        enable_gravity_embedding=True
         ) -> None:
         super(EvacuationEnv, self).__init__()
             
@@ -348,27 +347,56 @@ class EvacuationEnv(gym.Env):
         self.pedestrians = Pedestrians(num=number_of_pedestrians)
         self.time = Time(max_timesteps=const.MAX_TIMESTEPS)
         log.info('Env is initialized.')
-
+        
+        
+        self.enabled_gravity_embedding = enable_gravity_embedding
         self.action_space = spaces.Box(low=-1, high=1, shape=(2,), dtype=np.float32)
-        self.observation_space = spaces.Box(low=-1, high=1, shape=(6,), dtype=np.float32)
+        self.observation_space = self._get_observation_space()
+        
+        self.save_next_episode_anim = False
+
+    def _get_observation_space(self):        
+        observation_space = {
+            'agent_position' : spaces.Box(low=-1, high=1, shape=(2, ), dtype=np.float32)
+        }
+        
+        if self.enabled_gravity_embedding:
+            observation_space['grad_potential_pedestrians'] = \
+                spaces.Box(low=-1, high=1, shape=(2, ), dtype=np.float32)
+            observation_space['grad_potential_exit'] = \
+                spaces.Box(low=-1, high=1, shape=(2, ), dtype=np.float32)
+    
+        else:
+            observation_space['pedestrians_positions'] = \
+                spaces.Box(low=-1, high=1, shape=(self.pedestrians.num, 2), dtype=np.float32)
+            
+        return spaces.Dict(observation_space)
 
     def _get_observation(self):
         observation = {}
         observation['agent_position'] = self.agent.position
-        observation['grad_potential_pedestrians'] = grad_potential_pedestrians(
-            agent=self.agent, 
-            pedestrians=self.pedestrians, 
-            alpha=const.ALPHA
-        )
-        observation['grad_potential_exit'] = grad_potential_exit(
-            agent=self.agent,
-            pedestrians=self.pedestrians,
-            exit=self.area.exit,
-            alpha=const.ALPHA
-        )
+        
+        if self.enabled_gravity_embedding:
+            observation['grad_potential_pedestrians'] = grad_potential_pedestrians(
+                agent=self.agent, 
+                pedestrians=self.pedestrians, 
+                alpha=const.ALPHA
+            )
+            observation['grad_potential_exit'] = grad_potential_exit(
+                agent=self.agent,
+                pedestrians=self.pedestrians,
+                exit=self.area.exit,
+                alpha=const.ALPHA
+            )
+        else:
+            observation['pedestrians_positions'] = self.pedestrians.positions
+            
         return observation
 
     def reset(self):
+        if self.save_next_episode_anim:
+            self.draw = True
+        
         self.time.reset()
         self.area.reset()
         self.agent.reset()
@@ -413,6 +441,9 @@ class EvacuationEnv(gym.Env):
         
         # Record observation
         observation = self._get_observation()
+        
+        if (terminated or truncated) and self.draw:
+            self.save_animation()
 
         return observation, reward, terminated, truncated, {}
 
@@ -557,6 +588,9 @@ class EvacuationEnv(gym.Env):
         ani.save(filename=filename, writer='pillow')
         log.info(f"Env is rendered and gif animation is saved to {filename}")
 
+        if self.save_next_episode_anim:
+            self.save_next_episode_anim = False
+            self.draw = False
 
     def close(self):
         pass

@@ -2,5 +2,7 @@
     "files.exclude": 
     {
        "**/__pycache__": true
-    }
+    },
+    
+    "python.defaultInterpreterPath": "/home/cinemere/work/repo/venv/bin/python3"
 }
