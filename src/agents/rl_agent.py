@@ -13,6 +13,8 @@ import torch.optim as optim
 from torch.distributions import Categorical, Normal
 from collections import namedtuple
 
+device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+
 class RLAgent(BaseAgent):
     """RLAgent has an ability to learn
     
@@ -33,6 +35,7 @@ class RLAgent(BaseAgent):
         
         self.mode = mode
         self.network = network
+        self.network.to(device)
         self.gamma = gamma
         
         if load_pretrain:
@@ -66,7 +69,7 @@ class RLAgent(BaseAgent):
     def compute_discounted_returns(self):
         R = 0
         size = len(self.memory_rewards)
-        returns = torch.zeros(size, dtype=torch.float32)
+        returns = torch.zeros(size, dtype=torch.float32).to(device)
 
         for i in range(size)[::-1]:
             R = self.memory_rewards[i] + self.gamma * R
@@ -85,7 +88,7 @@ class RLAgent(BaseAgent):
             value    = self.memory_values[i]
             
             advantage = current_return - value
-            value_losses.append(F.smooth_l1_loss(value, current_return))
+            value_losses.append(F.smooth_l1_loss(value, current_return.unsqueeze(0)))
             policy_losses.append(-log_prob * advantage)
             
         policy_losses = torch.stack(policy_losses).mean()

@@ -172,12 +172,14 @@ class Exit:
 
 
 class Time:
-    def __init__(self, max_timesteps):
+    def __init__(self, max_timesteps, n_episodes):
         self.now = 0
         self.max_timesteps = max_timesteps
+        self.n_episodes = n_episodes
 
     def reset(self):
         self.now = 0
+        self.n_episodes += 1
 
     def step(self):
         self.now += 1
@@ -332,7 +334,8 @@ class EvacuationEnv(gym.Env):
         experiment_name='test',
         verbose=False,
         draw=False,
-        enable_gravity_embedding=True
+        enable_gravity_embedding=True,
+        n_episodes=0
         ) -> None:
         super(EvacuationEnv, self).__init__()
             
@@ -345,9 +348,8 @@ class EvacuationEnv(gym.Env):
         self.area = Area()
         self.agent = Agent()
         self.pedestrians = Pedestrians(num=number_of_pedestrians)
-        self.time = Time(max_timesteps=const.MAX_TIMESTEPS)
-        log.info('Env is initialized.')
-        
+        self.time = Time(max_timesteps=const.MAX_TIMESTEPS, n_episodes=n_episodes)
+        log.info('Env is initialized.')        
         
         self.enabled_gravity_embedding = enable_gravity_embedding
         self.action_space = spaces.Box(low=-1, high=1, shape=(2,), dtype=np.float32)
@@ -515,7 +517,7 @@ class EvacuationEnv(gym.Env):
         
         fig, ax = plt.subplots(figsize=(5, 5))
 
-        plt.title(f"{self.experiment_name}")
+        plt.title(f"{self.experiment_name}\nn_episodes = {self.time.n_episodes}")
         plt.hlines([self.area.height, -self.area.height], 
             -self.area.width, self.area.width, linestyle='--', color='grey')
         plt.vlines([self.area.width, -self.area.width], 
@@ -584,7 +586,7 @@ class EvacuationEnv(gym.Env):
         ani = animation.FuncAnimation(fig=fig, func=update, frames=self.time.now, interval=20)
         
         if not os.path.exists(const.SAVE_PATH_GIFF): os.makedirs(const.SAVE_PATH_GIFF)
-        filename = os.path.join(const.SAVE_PATH_GIFF, f'{self.experiment_name}.gif')
+        filename = os.path.join(const.SAVE_PATH_GIFF, f'{self.experiment_name}_ep-{self.time.n_episodes}.gif')
         ani.save(filename=filename, writer='pillow')
         log.info(f"Env is rendered and gif animation is saved to {filename}")
 
