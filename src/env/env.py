@@ -18,6 +18,8 @@ from src.env import constants as const
 
 from typing import Tuple, List, Dict
 
+import wandb
+
 def setup_logging(verbose, experiment_name):
     logs_folder = const.SAVE_PATH_LOGS
     if not os.path.exists(logs_folder): os.makedirs(logs_folder)
@@ -55,11 +57,20 @@ class SwitchDistances:
     to_escape = const.SWITCH_DISTANCE_TO_ESCAPE
     to_pedestrian = const.SWITCH_DISTANCE_TO_OTHER_PEDESTRIAN
 
-
 def is_distance_low(pedestrians_positions, destination, radius):
-    distances = distance_matrix(pedestrians_positions, np.expand_dims(destination, axis=0), 2)
+    distances = distance_matrix(
+        pedestrians_positions, np.expand_dims(destination, axis=0), 2
+    )
     return np.where(distances < radius, True, False).squeeze()
 
+def sum_distance(pedestrians_positions, destination):
+    distances = distance_matrix(
+        pedestrians_positions, np.expand_dims(destination, axis=0), 2
+    )
+    return distances.sum() / pedestrians_positions.shape[0]
+
+def estimate_intrinsic_reward(pedestrians_positions, exit_position):
+    return (1 - sum_distance(pedestrians_positions, exit_position)) / const.MAX_TIMESTEPS * 10
 
 def estimate_reward(old_statuses, new_statuses, timesteps, num_pedestrians):
     reward = 0
@@ -76,7 +87,6 @@ def estimate_reward(old_statuses, new_statuses, timesteps, num_pedestrians):
     curr = new_statuses == Status.FOLLOWER
     n = sum(np.logical_and(prev, curr))
     reward += (10 + 5 * time_factor) * n
-
     return reward
 
 
@@ -224,7 +234,9 @@ class Area:
     def reset(self):
         pass
 
-    def pedestrians_step(self, pedestrians : Pedestrians, agent : Agent) -> Tuple[Pedestrians, bool, float]:
+    def pedestrians_step(self, pedestrians : Pedestrians, agent : Agent, now : int) -> Tuple[Pedestrians, bool, float]:
+        old_statuses = pedestrians.statuses.copy()
+
         escaped = pedestrians.statuses == Status.ESCAPED
         pedestrians.directions[escaped] = 0
         pedestrians.positions[escaped] = self.exit.position
@@ -289,7 +301,30 @@ class Area:
         pedestrians.positions -= 2 * miss
         pedestrians.directions *= np.where(miss!=0, -1, 1)
 
-        return pedestrians
+        # Estimate pedestrians reward and update statuses
+        new_pedestrians_statuses = update_statuses(
+            statuses=pedestrians.statuses,
+            pedestrian_positions=pedestrians.positions,
+            agent_position=agent.position,
+            exit_position=self.exit.position
+        )
+        reward_pedestrians = estimate_reward(
+            old_statuses=old_statuses,
+            new_statuses=new_pedestrians_statuses,
+            timesteps=now,
+            num_pedestrians=pedestrians.num
+        )
+        intrinsic_reward = estimate_intrinsic_reward(
+            pedestrians_positions=pedestrians.positions,
+            exit_position=self.exit.position
+        )
+        pedestrians.statuses = new_pedestrians_statuses
+        if sum(pedestrians.statuses == Status.ESCAPED) == pedestrians.num:
+            termination = True
+        else: 
+            termination = False
+
+        return pedestrians, termination, reward_pedestrians + intrinsic_reward
 
     def agent_step(self, action : list, agent : Agent) -> Tuple[Agent, bool, float]:
         """
@@ -306,7 +341,8 @@ class Area:
             agent.position += agent.direction
             return agent, False, 0.
         else:
-            return agent, True, -5.
+            # return agent, True, -5.
+            return agent, False, -5.
 
     def _if_wall_collision(self, agent : Agent):
         pt = agent.position + agent.direction
@@ -395,9 +431,17 @@ class EvacuationEnv(gym.Env):
             
         return observation
 
-    def reset(self):
+    def reset(self, seed=None):
         if self.save_next_episode_anim:
             self.draw = True
+
+        if self.time.n_episodes > 0:
+            wandb.log({
+                "escaped_pedestrians" : sum(self.pedestrians.statuses == Status.ESCAPED),
+                "exiting_pedestrians" : sum(self.pedestrians.statuses == Status.EXITING),
+                "following_pedestrians" : sum(self.pedestrians.statuses == Status.FOLLOWER),
+                "viscek_pedestrians" : sum(self.pedestrians.statuses == Status.VISCEK)
+            })
         
         self.time.reset()
         self.area.reset()
@@ -413,25 +457,11 @@ class EvacuationEnv(gym.Env):
         truncated = self.time.step()
 
         # Agent step
-        self.agent, terminated, episode_reward_agent = self.area.agent_step(action, self.agent)
+        self.agent, terminated_agent, reward_agent = self.area.agent_step(action, self.agent)
         
         # Pedestrians step
-        self.pedestrians = self.area.pedestrians_step(self.pedestrians, self.agent)
-        
-        # Estimate pedestrians reward and update statuses
-        new_pedestrians_statuses = update_statuses(
-            statuses=self.pedestrians.statuses,
-            pedestrian_positions=self.pedestrians.positions,
-            agent_position=self.agent.position,
-            exit_position=self.area.exit.position
-        )
-        episode_reward_pedestrians = estimate_reward(
-            old_statuses=self.pedestrians.statuses,
-            new_statuses=new_pedestrians_statuses,
-            timesteps=self.time.now,
-            num_pedestrians=self.pedestrians.num
-        )
-        self.pedestrians.statuses = new_pedestrians_statuses
+        self.pedestrians, terminated_pedestrians, reward_pedestrians = \
+            self.area.pedestrians_step(self.pedestrians, self.agent, self.time.now)
         
         # Save positions for rendering an animation
         if self.draw:
@@ -439,15 +469,15 @@ class EvacuationEnv(gym.Env):
             self.agent.save()
 
         # Collect rewards
-        reward = episode_reward_agent + episode_reward_pedestrians
+        reward = reward_agent + reward_pedestrians
         
         # Record observation
         observation = self._get_observation()
         
-        if (terminated or truncated) and self.draw:
+        if (terminated_agent or terminated_pedestrians or truncated) and self.draw:
             self.save_animation()
 
-        return observation, reward, terminated, truncated, {}
+        return observation, reward, terminated_agent or terminated_pedestrians, truncated, {}
 
     def render(self):
         fig, ax = plt.subplots(figsize=(5, 5))

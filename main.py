@@ -92,8 +92,18 @@ if device.type == 'cuda':
     print('Allocated:', round(torch.cuda.memory_allocated(0)/1024**3,1), 'GB')
     print('Cached:   ', round(torch.cuda.memory_reserved(0)/1024**3,1), 'GB')
 
+# %%
+import wandb
+from src.env import constants
+from src import params
+config_env = {key : value for key, value in constants.__dict__.items() if key[0] != '_'}
+config_model = {key : value for key, value in params.__dict__.items() if key[0] != '_'}
+
+wandb.init(
+    project="evacuation",
+    notes='nowallcollisions_withintrinsicreward',
+    config=dict(config_env, **config_model)
+)
 
 # %%
 trainer.learn(number_of_episodes=3000)
-
-# %%
