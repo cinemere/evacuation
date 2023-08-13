@@ -4,5 +4,5 @@
        "**/__pycache__": true
     },
     
-    "python.defaultInterpreterPath": "/home/cinemere/work/repo/venv/bin/python3"
+    "python.defaultInterpreterPath": "/home/cinemere/work/evacuation/venv/bin/python3"
 }
