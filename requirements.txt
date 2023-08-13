@@ -2,4 +2,5 @@ matplotlib
 numpy
 scipy
 torch
-gym
+tensorboard
+gymnasium

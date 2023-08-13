@@ -3,5 +3,6 @@
 Don't forget to:
 
 ```
-    export PYTHONPATH=./src
+cd evacuation
+export PYTHONPATH=$PWD
 ```
