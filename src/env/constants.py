@@ -1,18 +1,20 @@
-NUM_PEDESTRIANS = 10                # number of pedestrians
-WIDTH = 1.0                         # geometry of environment space: width
-HEIGHT = 1.0                        # geometry of environment space: height
-ALPHA = 3                           # parameter of gradient state
-STEP_SIZE = 0.05                    # 0.1, 0.05, 0.01
+NUM_PEDESTRIANS = 10                        # number of pedestrians
+WIDTH = 1.0                                 # geometry of environment space: width
+HEIGHT = 1.0                                # geometry of environment space: height
+ALPHA = 3                                   # parameter of gradient state
+STEP_SIZE = 0.01                            # 0.1, 0.05, 0.01
+TERMINATION_AGENT_WALL_COLLISION = False    # is or no termination for agent's wall collision
 
-SWITCH_DISTANCE_TO_LEADER = 0.2     # radius of catch by leader
-SWITCH_DISTANCE_TO_OTHER_PEDESTRIAN = 0.1 # SWITCH_DISTANCE_TO_LEADER
+SWITCH_DISTANCE_TO_LEADER = 0.2             # radius of catch by leader
+SWITCH_DISTANCE_TO_OTHER_PEDESTRIAN = 0.1   # SWITCH_DISTANCE_TO_LEADER
 SWITCH_DISTANCE_TO_EXIT   = 0.4
 SWITCH_DISTANCE_TO_ESCAPE = 0.01
 
 MAX_TIMESTEPS = int(2*1e3)
 
 EPS = 1e-8 
-NOISE_COEF = 0.2                    # randomization in viscek model
+NOISE_COEF = 0.2                            # randomization in viscek model
+INTRINSIC_REWARD_COEF = 1.
 
 SAVE_PATH_GIFF = 'saved_data/giff'
 SAVE_PATH_PNG  = 'saved_data/png'
