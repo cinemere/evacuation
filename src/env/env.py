@@ -20,6 +20,7 @@ from typing import Tuple, List, Dict
 
 import wandb
 
+
 def setup_logging(verbose, experiment_name):
     logs_folder = const.SAVE_PATH_LOGS
     if not os.path.exists(logs_folder): os.makedirs(logs_folder)
@@ -32,10 +33,12 @@ def setup_logging(verbose, experiment_name):
         level=logging.DEBUG if verbose else logging.INFO
     )
 
+
 class UserEnum(Enum):
     @classmethod
     def all(cls):
         return list(map(lambda c: c, cls))
+
 
 class Status(UserEnum):
     VISCEK = auto()
@@ -52,10 +55,11 @@ class Status(UserEnum):
 
 
 class SwitchDistances:
-    to_leader = const.SWITCH_DISTANCE_TO_LEADER
-    to_exit   = const.SWITCH_DISTANCE_TO_EXIT
-    to_escape = const.SWITCH_DISTANCE_TO_ESCAPE
+    to_leader     = const.SWITCH_DISTANCE_TO_LEADER
+    to_exit       = const.SWITCH_DISTANCE_TO_EXIT
+    to_escape     = const.SWITCH_DISTANCE_TO_ESCAPE
     to_pedestrian = const.SWITCH_DISTANCE_TO_OTHER_PEDESTRIAN
+
 
 def is_distance_low(pedestrians_positions, destination, radius):
     distances = distance_matrix(
@@ -63,16 +67,26 @@ def is_distance_low(pedestrians_positions, destination, radius):
     )
     return np.where(distances < radius, True, False).squeeze()
 
+
 def sum_distance(pedestrians_positions, destination):
+    """Mean distance between pedestrians and destination"""
     distances = distance_matrix(
         pedestrians_positions, np.expand_dims(destination, axis=0), 2
     )
     return distances.sum() / pedestrians_positions.shape[0]
 
+
 def estimate_intrinsic_reward(pedestrians_positions, exit_position):
-    return (1 - sum_distance(pedestrians_positions, exit_position)) / const.MAX_TIMESTEPS * 10
+    """This is intrinsic reward, which is given to the agent at each step"""
+    return (1 - sum_distance(pedestrians_positions, exit_position)) * const.INTRINSIC_REWARD_COEF
+
 
 def estimate_reward(old_statuses, new_statuses, timesteps, num_pedestrians):
+    """This reward is based on how pedestrians update their status
+    
+    VISCEK or FOLLOWER --> EXITING  :  (15 +  5 * time_factor)
+    VISCEK             --> FOLLOWER :  (10 + 10 * time_factor)
+    """
     reward = 0
     time_factor = 1 - timesteps / (200 * num_pedestrians)
 
@@ -91,11 +105,7 @@ def estimate_reward(old_statuses, new_statuses, timesteps, num_pedestrians):
 
 
 def update_statuses(statuses, pedestrian_positions, agent_position, exit_position):
-    # n_viscek = sum(statuses == Status.VISCEK)
-    # n_follow = sum(statuses == Status.FOLLOWER)
-    # n_exitin = sum(statuses == Status.EXITING)
-    # n_escape = sum(statuses == Status.ESCAPED)
-    # print(n_viscek, n_follow, n_exitin, n_escape)
+    """Measure statuses of all pedestrians based on their position"""
     new_statuses = statuses.copy()
 
     condition = is_distance_low(
@@ -123,12 +133,12 @@ def count_new_statuses(old_statuses, new_statuses):
 
 
 class Pedestrians:
-    num : int # number of pedestrians
+    num : int                                   # number of pedestrians
     
-    positions : np.ndarray
-    directions : np.ndarray
-    statuses : np.ndarray
-    memory : Dict[str, List[np.ndarray]]
+    positions : np.ndarray                      # [num x 2], r_x and r_y
+    directions : np.ndarray                     # [num x 2], v_x and v_y
+    statuses : np.ndarray                       # [num], status : Status 
+    memory : Dict[str, List[np.ndarray]]        # needed for animation drawing (positions and statuses)
 
     def __init__(self, num : int):
         self.num = num
@@ -156,11 +166,11 @@ class Pedestrians:
 
 
 class Agent:
-    start_position : np.ndarray
-    start_direction : np.ndarray
-    position : np.ndarray
-    direction : np.ndarray
-    memory : Dict[str, List[np.ndarray]]
+    start_position : np.ndarray                 # [2], r0_x and r0_y (same each reset)
+    start_direction : np.ndarray                # [2], v0_x and v0_x (same each reset)
+    position : np.ndarray                       # [2], r_x and r_y
+    direction : np.ndarray                      # [2], v_x and v_y
+    memory : Dict[str, List[np.ndarray]]        # needed for animation drawing (position)
 
     def __init__(self):
         self.start_position = np.zeros(2, dtype=np.float32)
@@ -182,7 +192,7 @@ class Exit:
 
 
 class Time:
-    def __init__(self, max_timesteps, n_episodes):
+    def __init__(self, max_timesteps : int, n_episodes : int):
         self.now = 0
         self.max_timesteps = max_timesteps
         self.n_episodes = n_episodes
@@ -235,12 +245,13 @@ class Area:
         pass
 
     def pedestrians_step(self, pedestrians : Pedestrians, agent : Agent, now : int) -> Tuple[Pedestrians, bool, float]:
-        old_statuses = pedestrians.statuses.copy()
 
+        # Check evacuated pedestrians & record new directions and positions of escaped pedestrians
         escaped = pedestrians.statuses == Status.ESCAPED
         pedestrians.directions[escaped] = 0
         pedestrians.positions[escaped] = self.exit.position
-
+        
+        # Check exiting pedestrians & record new directions for exiting pedestrians
         exiting = pedestrians.statuses == Status.EXITING
         if any(exiting):
             vec2exit = self.exit.position - pedestrians.positions[exiting]
@@ -248,13 +259,14 @@ class Area:
             vec_size = np.minimum(len2exit, self.step_size)
             vec2exit = (vec2exit.T / len2exit * vec_size).T
             pedestrians.directions[exiting] = vec2exit
-            # pedestrians.positions[exiting] += vec2exit #uncomment
 
+        # Check following pedestrians & record new directions for following pedestrians
         following = pedestrians.statuses == Status.FOLLOWER
-        pedestrians.directions[following] = agent.direction
+        pedestrians.directions[following] = agent.direction  # TODO add coef for following leader's behavior
 
+        # Check viscek pedestrians
         viscek = pedestrians.statuses == Status.VISCEK
-        # fv = np.logical_or(following, viscek) #uncomment begin
+        # fv = np.logical_or(following, viscek)                                     # --- uncomment begin ---
         # fv_directions = pedestrians.directions[fv]
         # dm = distance_matrix(pedestrians.positions[viscek], # add exitors
         #                      pedestrians.positions[fv], 2)
@@ -266,42 +278,49 @@ class Area:
         # v_directions_y = (intersection * fv_directions[:, 1]).sum(axis=1) / n_intersections
         # v_directions = np.concatenate((v_directions_x[np.newaxis, :], 
         #                                v_directions_y[np.newaxis, :])).T
-        # v_directions = (v_directions.T / np.linalg.norm(v_directions, axis=1)).T #uncomment end
+        # v_directions = (v_directions.T / np.linalg.norm(v_directions, axis=1)).T  # ---  uncomment end  ---
 
+        # Use all moving particles (efv -- exiting, following, viscek) to estimate the movement of viscek particles
         efv = reduce(np.logical_or, (exiting, following, viscek))
         efv_directions = pedestrians.directions[efv]
+        efv_directions = (efv_directions.T / np.linalg.norm(efv_directions, axis=1)).T 
+
+        # Find neighbours between viscek particles and all other moving particles
         dm = distance_matrix(pedestrians.positions[viscek],
                              pedestrians.positions[efv], 2)
-        
-        intersection = np.where(dm < SwitchDistances.to_pedestrian, 1, 0)
+        intersection = np.where(dm < SwitchDistances.to_pedestrian, 1, 0) 
         n_intersections = np.maximum(1, intersection.sum(axis=1))
 
-        # pedestrians.normirate_directions()
-        efv_directions = (efv_directions.T / np.linalg.norm(efv_directions, axis=1)).T 
-        
+        # Estimate the contibution if each neighbouring particle & normirate the obtained directions
         v_directions_x = (intersection * efv_directions[:, 0]).sum(axis=1) / n_intersections
         v_directions_y = (intersection * efv_directions[:, 1]).sum(axis=1) / n_intersections
         v_directions = np.concatenate((v_directions_x[np.newaxis, :], 
                                        v_directions_y[np.newaxis, :])).T
         v_directions = (v_directions.T / np.linalg.norm(v_directions, axis=1)).T
 
-        # randomization = (np.random.rand(sum(viscek), 2) - 0.5) * 2 * self.step_size  # norm distribution! TODO
+        # Create randomization noise to obtained directions
         randomization = np.random.normal(loc=0.0, scale=self.step_size, size=(sum(viscek), 2))
         randomization = (randomization.T / (np.linalg.norm(randomization, axis=1) + const.EPS)).T
         
+        # New direction = estimated_direction + noise
         v_directions = (v_directions + const.NOISE_COEF * randomization) #/ (1 + const.NOISE_COEF)
         v_directions = (v_directions.T / np.linalg.norm(v_directions, axis=1)).T
 
+        # Record new directions of viscek pedestrians
         pedestrians.directions[viscek] = v_directions * self.step_size
+        
+        # Record new positions of exiting, following and viscek pedestrians
         pedestrians.positions[efv] += pedestrians.directions[efv] 
 
+        # Handling of wall collisions
         clipped = np.clip(pedestrians.positions, 
                     [-self.width, -self.height], [self.width, self.height])
         miss = pedestrians.positions - clipped
         pedestrians.positions -= 2 * miss
         pedestrians.directions *= np.where(miss!=0, -1, 1)
 
-        # Estimate pedestrians reward and update statuses
+        # Estimate pedestrians statues, reward & update statuses
+        old_statuses = pedestrians.statuses.copy()
         new_pedestrians_statuses = update_statuses(
             statuses=pedestrians.statuses,
             pedestrian_positions=pedestrians.positions,
@@ -319,6 +338,8 @@ class Area:
             exit_position=self.exit.position
         )
         pedestrians.statuses = new_pedestrians_statuses
+        
+        # Termination due to all pedestrians escaped
         if sum(pedestrians.statuses == Status.ESCAPED) == pedestrians.num:
             termination = True
         else: 
@@ -334,15 +355,15 @@ class Area:
             3. Return (updated agent, termination, reward)
         """
         action = np.array(action)
-        np.clip(action, -1, 1, out=action)
+        action /= np.linalg.norm(action) + const.EPS # np.clip(action, -1, 1, out=action)
+
         agent.direction = self.step_size * action
         
         if not self._if_wall_collision(agent):
             agent.position += agent.direction
             return agent, False, 0.
         else:
-            # return agent, True, -5.
-            return agent, False, -5.
+            return agent, const.TERMINATION_AGENT_WALL_COLLISION, -5.
 
     def _if_wall_collision(self, agent : Agent):
         pt = agent.position + agent.direction
