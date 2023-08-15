@@ -14,7 +14,8 @@ import matplotlib as mpl
 from functools import reduce
 from enum import Enum, auto
 
-from src.env import constants as const
+from src.env import constants
+from src.params import WALK_DIAGRAM_LOGGING_FREQUENCY
 
 from typing import Tuple, List, Dict
 
@@ -22,7 +23,7 @@ import wandb
 
 
 def setup_logging(verbose, experiment_name):
-    logs_folder = const.SAVE_PATH_LOGS
+    logs_folder = constants.SAVE_PATH_LOGS
     if not os.path.exists(logs_folder): os.makedirs(logs_folder)
 
     logs_filename = os.path.join(logs_folder, f"logs_{experiment_name}.log")
@@ -55,10 +56,10 @@ class Status(UserEnum):
 
 
 class SwitchDistances:
-    to_leader     = const.SWITCH_DISTANCE_TO_LEADER
-    to_exit       = const.SWITCH_DISTANCE_TO_EXIT
-    to_escape     = const.SWITCH_DISTANCE_TO_ESCAPE
-    to_pedestrian = const.SWITCH_DISTANCE_TO_OTHER_PEDESTRIAN
+    to_leader     = constants.SWITCH_DISTANCE_TO_LEADER
+    to_exit       = constants.SWITCH_DISTANCE_TO_EXIT
+    to_escape     = constants.SWITCH_DISTANCE_TO_ESCAPE
+    to_pedestrian = constants.SWITCH_DISTANCE_TO_OTHER_PEDESTRIAN
 
 
 def is_distance_low(pedestrians_positions, destination, radius):
@@ -78,7 +79,7 @@ def sum_distance(pedestrians_positions, destination):
 
 def estimate_intrinsic_reward(pedestrians_positions, exit_position):
     """This is intrinsic reward, which is given to the agent at each step"""
-    return (1 - sum_distance(pedestrians_positions, exit_position)) * const.INTRINSIC_REWARD_COEF
+    return (0 - sum_distance(pedestrians_positions, exit_position))
 
 
 def estimate_reward(old_statuses, new_statuses, timesteps, num_pedestrians):
@@ -192,10 +193,15 @@ class Exit:
 
 
 class Time:
-    def __init__(self, max_timesteps : int, n_episodes : int):
+    def __init__(self, 
+        max_timesteps : int = constants.MAX_TIMESTEPS,
+        n_episodes : int = constants.N_EPISODES,
+        n_timesteps : int = constants.N_TIMESTEPS
+        ) -> None:
         self.now = 0
         self.max_timesteps = max_timesteps
         self.n_episodes = n_episodes
+        self.overall_timesteps = n_timesteps
 
     def reset(self):
         self.now = 0
@@ -203,18 +209,21 @@ class Time:
 
     def step(self):
         self.now += 1
+        self.overall_timesteps += 1
         return self.truncated()
         
     def truncated(self):
         return self.now >= self.max_timesteps 
 
 
-def grad_potential_pedestrians(agent: Agent, pedestrians: Pedestrians, alpha: float):
+def grad_potential_pedestrians(
+        agent: Agent, pedestrians: Pedestrians, alpha: float = constants.ALPHA
+    ) -> np.ndarray:
     R = agent.position[np.newaxis, :] - pedestrians.positions
     R = R[pedestrians.statuses == Status.VISCEK]
 
     if len(R) != 0:
-        norm = np.linalg.norm(R, axis = 1)[:, np.newaxis] + const.EPS
+        norm = np.linalg.norm(R, axis = 1)[:, np.newaxis] + constants.EPS
         grad = - alpha / norm ** (alpha + 2) * R
         grad = grad.sum(axis = 0)
     else:
@@ -222,9 +231,11 @@ def grad_potential_pedestrians(agent: Agent, pedestrians: Pedestrians, alpha: fl
     return grad
 
 
-def grad_potential_exit(agent: Agent, pedestrians: Pedestrians, exit: Exit, alpha: float):
+def grad_potential_exit(
+        agent: Agent, pedestrians: Pedestrians, exit: Exit, alpha: float = constants.ALPHA
+    ) -> np.ndarray:
     R = agent.position - exit.position
-    norm = np.linalg.norm(R) + const.EPS
+    norm = np.linalg.norm(R) + constants.EPS
     grad = - alpha / norm ** (alpha + 2) * R
     grad *= sum(pedestrians.statuses == Status.FOLLOWER)
     return grad
@@ -232,19 +243,21 @@ def grad_potential_exit(agent: Agent, pedestrians: Pedestrians, exit: Exit, alph
 
 class Area:
     def __init__(self, 
-        width = const.WIDTH, 
-        height = const.HEIGHT,
-        step_size = const.STEP_SIZE
+        width = constants.WIDTH, 
+        height = constants.HEIGHT,
+        step_size = constants.STEP_SIZE,
+        noise_coef = constants.NOISE_COEF
         ):
         self.width = width
         self.height = height
         self.step_size = step_size
+        self.noise_coef = noise_coef
         self.exit = Exit()
     
     def reset(self):
         pass
 
-    def pedestrians_step(self, pedestrians : Pedestrians, agent : Agent, now : int) -> Tuple[Pedestrians, bool, float]:
+    def pedestrians_step(self, pedestrians : Pedestrians, agent : Agent, now : int) -> Tuple[Pedestrians, bool, float, float]:
 
         # Check evacuated pedestrians & record new directions and positions of escaped pedestrians
         escaped = pedestrians.statuses == Status.ESCAPED
@@ -300,10 +313,10 @@ class Area:
 
         # Create randomization noise to obtained directions
         randomization = np.random.normal(loc=0.0, scale=self.step_size, size=(sum(viscek), 2))
-        randomization = (randomization.T / (np.linalg.norm(randomization, axis=1) + const.EPS)).T
+        randomization = (randomization.T / (np.linalg.norm(randomization, axis=1) + constants.EPS)).T
         
         # New direction = estimated_direction + noise
-        v_directions = (v_directions + const.NOISE_COEF * randomization) #/ (1 + const.NOISE_COEF)
+        v_directions = (v_directions + constants.NOISE_COEF * randomization) #/ (1 + constants.NOISE_COEF)
         v_directions = (v_directions.T / np.linalg.norm(v_directions, axis=1)).T
 
         # Record new directions of viscek pedestrians
@@ -345,7 +358,7 @@ class Area:
         else: 
             termination = False
 
-        return pedestrians, termination, reward_pedestrians + intrinsic_reward
+        return pedestrians, termination, reward_pedestrians, intrinsic_reward
 
     def agent_step(self, action : list, agent : Agent) -> Tuple[Agent, bool, float]:
         """
@@ -355,7 +368,7 @@ class Area:
             3. Return (updated agent, termination, reward)
         """
         action = np.array(action)
-        action /= np.linalg.norm(action) + const.EPS # np.clip(action, -1, 1, out=action)
+        action /= np.linalg.norm(action) + constants.EPS # np.clip(action, -1, 1, out=action)
 
         agent.direction = self.step_size * action
         
@@ -363,7 +376,7 @@ class Area:
             agent.position += agent.direction
             return agent, False, 0.
         else:
-            return agent, const.TERMINATION_AGENT_WALL_COLLISION, -5.
+            return agent, constants.TERMINATION_AGENT_WALL_COLLISION, -5.
 
     def _if_wall_collision(self, agent : Agent):
         pt = agent.position + agent.direction
@@ -386,34 +399,56 @@ class EvacuationEnv(gym.Env):
     Continious Action and Observation Space.
     """
     def __init__(self, 
-        render_mode=None,
-        number_of_pedestrians = const.NUM_PEDESTRIANS,
         experiment_name='test',
+        number_of_pedestrians=constants.NUM_PEDESTRIANS,
+        # area params
+        width=constants.WIDTH,
+        height=constants.HEIGHT,
+        step_size=constants.STEP_SIZE,
+        noise_coef=constants.NOISE_COEF,
+        intrinsic_reward_coef=constants.INTRINSIC_REWARD_COEF,
+        # time params
+        max_timesteps=constants.MAX_TIMESTEPS,
+        n_episodes=constants.N_EPISODES,
+        n_timesteps=constants.N_TIMESTEPS,
+        # gravity embedding params
+        enabled_gravity_embedding=constants.ENABLED_GRAVITY_EMBEDDING,
+        alpha=constants.ALPHA,
+        # logging params
         verbose=False,
-        draw=False,
-        enable_gravity_embedding=True,
-        n_episodes=0
+        render_mode=None,
+        draw=False
         ) -> None:
         super(EvacuationEnv, self).__init__()
-            
-        assert render_mode is None or render_mode in self.metadata["render_modes"]
-        self.render_mode = render_mode
-        self.draw = draw
-        self.experiment_name = experiment_name
-        setup_logging(verbose, experiment_name)
-
-        self.area = Area()
-        self.agent = Agent()
-        self.pedestrians = Pedestrians(num=number_of_pedestrians)
-        self.time = Time(max_timesteps=const.MAX_TIMESTEPS, n_episodes=n_episodes)
-        log.info('Env is initialized.')        
+        # setup env
+        self.pedestrians = Pedestrians(num=number_of_pedestrians)        
+        self.area = Area(width=width, height=height, step_size=step_size,
+            noise_coef=noise_coef)
+        self.time = Time(
+            max_timesteps=max_timesteps, n_episodes=n_episodes, n_timesteps=n_timesteps)
         
-        self.enabled_gravity_embedding = enable_gravity_embedding
+        # setup agent
+        self.agent = Agent()
+        self.intrinsic_reward_coef = intrinsic_reward_coef
+        self.episode_reward = 0
+        self.episode_intrinsic_reward = 0
+        self.episode_status_reward = 0        
+        self.enabled_gravity_embedding = enabled_gravity_embedding
+        self.alpha = alpha
+
         self.action_space = spaces.Box(low=-1, high=1, shape=(2,), dtype=np.float32)
         self.observation_space = self._get_observation_space()
         
-        self.save_next_episode_anim = False
+        # logging
+        self.render_mode = render_mode
+        self.experiment_name = experiment_name
+        setup_logging(verbose, experiment_name)
 
+        # drawing
+        self.draw = draw
+        self.save_next_episode_anim = False
+        log.info(f'Env {self.experiment_name} is initialized.')        
+        
     def _get_observation_space(self):        
         observation_space = {
             'agent_position' : spaces.Box(low=-1, high=1, shape=(2, ), dtype=np.float32)
@@ -428,7 +463,9 @@ class EvacuationEnv(gym.Env):
         else:
             observation_space['pedestrians_positions'] = \
                 spaces.Box(low=-1, high=1, shape=(self.pedestrians.num, 2), dtype=np.float32)
-            
+            observation_space['exit_position'] = \
+                spaces.Box(low=-1, high=1, shape=(2, ), dtype=np.float32)
+
         return spaces.Dict(observation_space)
 
     def _get_observation(self):
@@ -439,31 +476,43 @@ class EvacuationEnv(gym.Env):
             observation['grad_potential_pedestrians'] = grad_potential_pedestrians(
                 agent=self.agent, 
                 pedestrians=self.pedestrians, 
-                alpha=const.ALPHA
+                alpha=self.alpha
             )
             observation['grad_potential_exit'] = grad_potential_exit(
                 agent=self.agent,
                 pedestrians=self.pedestrians,
                 exit=self.area.exit,
-                alpha=const.ALPHA
+                alpha=self.alpha
             )
         else:
             observation['pedestrians_positions'] = self.pedestrians.positions
-            
+            observation['exit_position'] = self.area.exit.position
+
         return observation
 
     def reset(self, seed=None):
-        if self.save_next_episode_anim:
+        if self.save_next_episode_anim or (self.time.n_episodes + 1) % WALK_DIAGRAM_LOGGING_FREQUENCY == 0:
             self.draw = True
+            self.save_next_episode_anim = True
 
         if self.time.n_episodes > 0:
-            wandb.log({
+            logging_dict = {
+                "episode_intrinsic_reward" : self.episode_intrinsic_reward,
+                "episode_status_reward" : self.episode_status_reward,
+                "episode_reward" : self.episode_reward,
+                "episode_length" : self.time.now,
                 "escaped_pedestrians" : sum(self.pedestrians.statuses == Status.ESCAPED),
                 "exiting_pedestrians" : sum(self.pedestrians.statuses == Status.EXITING),
                 "following_pedestrians" : sum(self.pedestrians.statuses == Status.FOLLOWER),
-                "viscek_pedestrians" : sum(self.pedestrians.statuses == Status.VISCEK)
-            })
+                "viscek_pedestrians" : sum(self.pedestrians.statuses == Status.VISCEK),
+                "overall_timesteps" : self.time.overall_timesteps
+            }
+            log.info('\t'.join([f'{key}={value}' for key, value in logging_dict.items()]))
+            wandb.log(logging_dict)
         
+        self.episode_reward = 0
+        self.episode_intrinsic_reward = 0
+        self.episode_status_reward = 0 
         self.time.reset()
         self.area.reset()
         self.agent.reset()
@@ -474,14 +523,14 @@ class EvacuationEnv(gym.Env):
         return self._get_observation(), {}
 
     def step(self, action: list):
-        # Incrimenate time
+        # Increment time
         truncated = self.time.step()
 
         # Agent step
         self.agent, terminated_agent, reward_agent = self.area.agent_step(action, self.agent)
         
         # Pedestrians step
-        self.pedestrians, terminated_pedestrians, reward_pedestrians = \
+        self.pedestrians, terminated_pedestrians, reward_pedestrians, intrinsic_reward = \
             self.area.pedestrians_step(self.pedestrians, self.agent, self.time.now)
         
         # Save positions for rendering an animation
@@ -490,14 +539,19 @@ class EvacuationEnv(gym.Env):
             self.agent.save()
 
         # Collect rewards
-        reward = reward_agent + reward_pedestrians
+        reward = reward_agent + reward_pedestrians + self.intrinsic_reward_coef * intrinsic_reward
         
         # Record observation
         observation = self._get_observation()
         
+        # Draw animation
         if (terminated_agent or terminated_pedestrians or truncated) and self.draw:
             self.save_animation()
 
+        # Log reward
+        self.episode_reward += reward
+        self.episode_intrinsic_reward += intrinsic_reward
+        self.episode_status_reward += reward_agent + reward_pedestrians
         return observation, reward, terminated_agent or terminated_pedestrians, truncated, {}
 
     def render(self):
@@ -510,7 +564,7 @@ class EvacuationEnv(gym.Env):
         exiting_zone = mpatches.Wedge(
             exit_coordinates, 
             SwitchDistances.to_exit, 
-            0, 180, alpha = 0.2, color='green'
+            0, 180, alpha=0.2, color='green'
         )
         ax.add_patch(exiting_zone)
 
@@ -558,8 +612,8 @@ class EvacuationEnv(gym.Env):
         plt.title(f"{self.experiment_name}. Timesteps: {self.time.now}")
 
         plt.tight_layout()
-        if not os.path.exists(const.SAVE_PATH_PNG): os.makedirs(const.SAVE_PATH_PNG)
-        filename = os.path.join(const.SAVE_PATH_PNG, f'{self.experiment_name}.png')
+        if not os.path.exists(constants.SAVE_PATH_PNG): os.makedirs(constants.SAVE_PATH_PNG)
+        filename = os.path.join(constants.SAVE_PATH_PNG, f'{self.experiment_name}.png')
         plt.savefig(filename)
         plt.show()
         log.info(f"Env is rendered and pnd image is saved to {filename}")
@@ -584,7 +638,7 @@ class EvacuationEnv(gym.Env):
         exiting_zone = mpatches.Wedge(
             exit_coordinates, 
             SwitchDistances.to_exit, 
-            0, 180, alpha = 0.2, color='green'
+            0, 180, alpha=0.2, color='green'
         )
         ax.add_patch(exiting_zone)
 
@@ -636,8 +690,8 @@ class EvacuationEnv(gym.Env):
 
         ani = animation.FuncAnimation(fig=fig, func=update, frames=self.time.now, interval=20)
         
-        if not os.path.exists(const.SAVE_PATH_GIFF): os.makedirs(const.SAVE_PATH_GIFF)
-        filename = os.path.join(const.SAVE_PATH_GIFF, f'{self.experiment_name}_ep-{self.time.n_episodes}.gif')
+        if not os.path.exists(constants.SAVE_PATH_GIFF): os.makedirs(constants.SAVE_PATH_GIFF)
+        filename = os.path.join(constants.SAVE_PATH_GIFF, f'{self.experiment_name}_ep-{self.time.n_episodes}.gif')
         ani.save(filename=filename, writer='pillow')
         log.info(f"Env is rendered and gif animation is saved to {filename}")
 

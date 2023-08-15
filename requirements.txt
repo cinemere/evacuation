@@ -2,6 +2,7 @@ matplotlib
 numpy
 scipy
 torch
-tensorboard
 gymnasium
+tensorboard
+stable-baselines3
 wandb

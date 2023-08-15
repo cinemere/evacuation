@@ -1,26 +1,79 @@
-from src.params import *
 from gymnasium import spaces
 import numpy as np
+import argparse
 
-def get_experiment_name(prefix):
-    # # parameters to vary:
-    # learning_rate = 1e-4
-    # gamma = 0.99
-    # number_of_pedestrians = 60  # 2, 3, 5, 10, 50, 100
-    # case = 'continious'  # 'continious', 'grid'
-    # obs_type = 's_vigrad'  # 'vigrad', 'coord', 'vigrad'
-    # norm = 'no'  # 'no', 'adv', 'ret'/home/skoguest/aklepach/pr_evac/load_continious_viscekobs_nonorm_N60_lr1e-06_gamma0.99_vr0.05_a4--18-05-2022-19-26-38
-    # vision_radius = 0.1  # 0.2
-    # alpha = 2  # 2
-    # step_size = 0.01  # 0.01
+from src.env import constants
+from src.params import *
+
+
+def parse_args():
+    parser = argparse.ArgumentParser(
+        formatter_class=argparse.ArgumentDefaultsHelpFormatter
+    )
     
+    model = parser.add_argument_group('model')
+    model.add_argument('--origin', type=str, default='ppo',
+        choices=['ppo', 'a2c'], help="which model to use")
+    model.add_argument('--learn-timesteps', type=int, default=5_000_000,
+        help='number of timesteps to learn the model')
+    model.add_argument('--learning-rate', type=float, default=0.0003,
+        help='learning rate for stable baselines ppo model')
+    model.add_argument('--gamma', type=float, default=0.99,
+        help='gammma for stable baselines ppo model')
+    model.add_argument('--device', type=str, default=DEVICE,
+        choices=['cpu', 'cuda'], help='device for the model')
+
+    experiment = parser.add_argument_group('experiment')
+    experiment.add_argument('--exp-name', type=str, default='test',
+        help='prefix of the experiment name for logging results')
+    experiment.add_argument('-v', '--verbose', action='store_true',
+        help='debug mode of logging')
+    experiment.add_argument('--draw', action='store_true',
+        help='save animation at each step')
+
+    env = parser.add_argument_group('env')
+    env.add_argument('-n', '--number-of-pedestrians', type=int, default=constants.NUM_PEDESTRIANS,
+        help='number of pedestrians in the simulation')
+    env.add_argument('--width', type=float, default=constants.WIDTH,
+        help='geometry of environment space: width')
+    env.add_argument('--height', type=float, default=constants.HEIGHT,
+        help='geometry of environment space: height')
+    env.add_argument('--step-size', type=float, default=constants.STEP_SIZE,
+        help='length of pedestrian\'s and agent\'s step')
+    env.add_argument('--noise-coef', type=float, default=constants.NOISE_COEF,
+        help='noise coefficient of randomization in viscek model')
+    env.add_argument('--intrinsic-reward-coef', type=float, default=constants.INTRINSIC_REWARD_COEF,
+        help='coefficient in front of intrinsic reward')
+    
+    time = parser.add_argument_group('time')
+    time.add_argument('--max-timesteps', type=int, default=constants.MAX_TIMESTEPS,
+        help = 'max timesteps before truncation')
+    time.add_argument('--n-episodes', type=int, default=constants.N_EPISODES,
+        help = 'number of episodes already done (for pretrained models)')
+    time.add_argument('--n-timesteps', type=int, default=constants.N_TIMESTEPS,
+        help = 'number of timesteps already done (for pretrained models)')
+    
+    gravity_embedding_params = parser.add_argument_group('gravity embedding params')    
+    gravity_embedding_params.add_argument('-e', '--enabled-gravity-embedding', type=bool, 
+        default=constants.ENABLED_GRAVITY_EMBEDDING,
+        help='if True use gravity embedding')
+    gravity_embedding_params.add_argument('--alpha', type=float, default=constants.ALPHA,
+        help='alpha parameter of gravity gradient embedding')
+    
+    args = parser.parse_args()
+    return args
+
+def get_experiment_name(args):
+    prefix = args.exp_name
     params = [
-        f"lr-{LEARNING_RATE}",
-        f"n-{NUMBER_OF_PEDESTRIANS}",
-        f"gamma-{GAMMA}",
-        f"s-{'gra' if ENABLE_GRAVITY_EMBEDDING else 'ped'}"
+        f"n-{args.number_of_pedestrians}",
+        f"lr-{args.learning_rate}",
+        f"gamma-{args.gamma}",
+        f"s-{f'gra_a-{args.alpha}' if args.enabled_gravity_embedding else 'ped'}",
+        f"ss-{args.step_size}",
+        f"vr-{constants.SWITCH_DISTANCE_TO_OTHER_PEDESTRIAN}"
     ]
-    return f"{prefix}_{NOW}_{'_'.join(params)}"
+    return f"{prefix}_{'_'.join(params)}_{NOW}"
 
 def get_act_size(act_space: spaces.Box):
     return act_space.shape[0]
