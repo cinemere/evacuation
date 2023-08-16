@@ -53,8 +53,18 @@ def parse_args():
     time.add_argument('--n-timesteps', type=int, default=constants.N_TIMESTEPS,
         help = 'number of timesteps already done (for pretrained models)')
     
+    def str2bool(v):
+        if isinstance(v, bool):
+            return v
+        if v.lower() in ('yes', 'true', 't', 'y', '1'):
+            return True
+        elif v.lower() in ('no', 'false', 'f', 'n', '0'):
+            return False
+        else:
+            raise argparse.ArgumentTypeError('Boolean value expected.')
+
     gravity_embedding_params = parser.add_argument_group('gravity embedding params')    
-    gravity_embedding_params.add_argument('-e', '--enabled-gravity-embedding', type=bool, 
+    gravity_embedding_params.add_argument('-e', '--enabled-gravity-embedding', type=str2bool,
         default=constants.ENABLED_GRAVITY_EMBEDDING,
         help='if True use gravity embedding')
     gravity_embedding_params.add_argument('--alpha', type=float, default=constants.ALPHA,
