@@ -165,6 +165,14 @@ class Pedestrians:
         self.memory['positions'].append(self.positions.copy())
         self.memory['statuses'].append(self.statuses.copy())
 
+    @property
+    def status_stats(self):
+        return {
+            'escaped'  : sum(self.statuses == Status.ESCAPED),
+            'exiting'  : sum(self.statuses == Status.EXITING),
+            'following': sum(self.statuses == Status.FOLLOWER),
+            'viscek'   : sum(self.statuses == Status.VISCEK),
+        }
 
 class Agent:
     start_position : np.ndarray                 # [2], r0_x and r0_y (same each reset)
