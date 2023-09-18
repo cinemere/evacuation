@@ -621,7 +621,7 @@ class EvacuationEnv(gym.Env):
 
         plt.tight_layout()
         if not os.path.exists(constants.SAVE_PATH_PNG): os.makedirs(constants.SAVE_PATH_PNG)
-        filename = os.path.join(constants.SAVE_PATH_PNG, f'{self.experiment_name}.png')
+        filename = os.path.join(constants.SAVE_PATH_PNG, f'{self.experiment_name}_{self.time.now}.png')
         plt.savefig(filename)
         plt.show()
         log.info(f"Env is rendered and pnd image is saved to {filename}")
