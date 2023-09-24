@@ -477,7 +477,7 @@ class EvacuationEnv(gym.Env):
         self.enabled_gravity_embedding = enabled_gravity_embedding
         self.alpha = alpha
 
-        self.action_space = spaces.Box(low=-1, high=1, shape=(2,), dtype=np.float32)
+        self.action_space = spaces.Box(low=-np.inf, high=np.inf, shape=(2,), dtype=np.float32)
         self.observation_space = self._get_observation_space()
         
         # logging
