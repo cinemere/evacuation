@@ -5,6 +5,7 @@
 NUM_PEDESTRIANS = 10                        # ! number of pedestrians
 TERMINATION_AGENT_WALL_COLLISION = False    # is or no termination for agent's wall collision
 EPS = 1e-8 
+ENSLAVING_DEGREE = 0.1                      # leader's enslaving degree
 
 # Area params
 WIDTH = 1.0                                 # ! geometry of environment space: width

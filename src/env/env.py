@@ -180,10 +180,12 @@ class Agent:
     position : np.ndarray                       # [2], r_x and r_y
     direction : np.ndarray                      # [2], v_x and v_y
     memory : Dict[str, List[np.ndarray]]        # needed for animation drawing (position)
+    enslaving_degree: float                     # 0 < enslaving_degree <= 1
 
-    def __init__(self):
+    def __init__(self, enslaving_degree):
         self.start_position = np.zeros(2, dtype=np.float32)
         self.start_direction = np.zeros(2, dtype=np.float32)
+        self.enslaving_degree = enslaving_degree
         
     def reset(self):
         self.position = self.start_position.copy()
@@ -283,10 +285,11 @@ class Area:
 
         # Check following pedestrians & record new directions for following pedestrians
         following = pedestrians.statuses == Status.FOLLOWER
-        pedestrians.directions[following] = agent.direction  # TODO add coef for following leader's behavior
+        # pedestrians.directions[following] = agent.direction  # TODO add coef for following leader's behavior.  # -- only q=1
 
         # Check viscek pedestrians
         viscek = pedestrians.statuses == Status.VISCEK
+        
         # fv = np.logical_or(following, viscek)                                     # --- uncomment begin ---
         # fv_directions = pedestrians.directions[fv]
         # dm = distance_matrix(pedestrians.positions[viscek], # add exitors
@@ -306,29 +309,57 @@ class Area:
         efv_directions = pedestrians.directions[efv]
         efv_directions = (efv_directions.T / np.linalg.norm(efv_directions, axis=1)).T 
 
+        # To estimate Viscek model for (fv -- following and viscek) particles
+        fv = reduce(np.logical_or, (following, viscek))
+        fv_directions = pedestrians.directions[fv]
+        fv_directions = (fv_directions.T / np.linalg.norm(fv_directions, axis=1)).T
+        
+        # # Find neighbours between viscek particles and all other moving particles   # -- only q=1 -- comment begin
+        # dm = distance_matrix(pedestrians.positions[viscek],
+        #                      pedestrians.positions[efv], 2)
+        # intersection = np.where(dm < SwitchDistances.to_pedestrian, 1, 0) 
+        # n_intersections = np.maximum(1, intersection.sum(axis=1))                   # -- only q=1 -- comment end
+        
         # Find neighbours between viscek particles and all other moving particles
-        dm = distance_matrix(pedestrians.positions[viscek],
+        dm = distance_matrix(pedestrians.positions[fv],
                              pedestrians.positions[efv], 2)
         intersection = np.where(dm < SwitchDistances.to_pedestrian, 1, 0) 
         n_intersections = np.maximum(1, intersection.sum(axis=1))
 
-        # Estimate the contibution if each neighbouring particle & normirate the obtained directions
-        v_directions_x = (intersection * efv_directions[:, 0]).sum(axis=1) / n_intersections
-        v_directions_y = (intersection * efv_directions[:, 1]).sum(axis=1) / n_intersections
-        v_directions = np.concatenate((v_directions_x[np.newaxis, :], 
-                                       v_directions_y[np.newaxis, :])).T
-        v_directions = (v_directions.T / np.linalg.norm(v_directions, axis=1)).T
+        # Estimate the contibution if each neighbouring particle & normirate the obtained directions 
+        # v_directions_x = (intersection * efv_directions[:, 0]).sum(axis=1) / n_intersections   # -- only q=1 -- comment begin
+        # v_directions_y = (intersection * efv_directions[:, 1]).sum(axis=1) / n_intersections
+        # v_directions = np.concatenate((v_directions_x[np.newaxis, :], 
+        #                                v_directions_y[np.newaxis, :])).T
+        # v_directions = (v_directions.T / np.linalg.norm(v_directions, axis=1)).T               # -- only q=1 -- comment end
+        fv_directions_x = (intersection * efv_directions[:, 0]).sum(axis=1) / n_intersections
+        fv_directions_y = (intersection * efv_directions[:, 1]).sum(axis=1) / n_intersections
+        fv_directions = np.concatenate((fv_directions_x[np.newaxis, :], 
+                                        fv_directions_y[np.newaxis, :])).T
+        fv_directions = (fv_directions.T / np.linalg.norm(fv_directions, axis=1)).T
 
         # Create randomization noise to obtained directions
-        randomization = np.random.normal(loc=0.0, scale=self.step_size, size=(sum(viscek), 2))
+        # randomization = np.random.normal(loc=0.0, scale=self.step_size, size=(sum(viscek), 2))                        # -- only q=1 
+        randomization = np.random.normal(loc=0.0, scale=self.step_size, size=(sum(viscek) + sum(following), 2))
         randomization = (randomization.T / (np.linalg.norm(randomization, axis=1) + constants.EPS)).T
         
-        # New direction = estimated_direction + noise
-        v_directions = (v_directions + constants.NOISE_COEF * randomization) #/ (1 + constants.NOISE_COEF)
-        v_directions = (v_directions.T / np.linalg.norm(v_directions, axis=1)).T
+        # # New direction = estimated_direction + noise
+        # v_directions = (v_directions + constants.NOISE_COEF * randomization) #/ (1 + constants.NOISE_COEF)
+        # v_directions = (v_directions.T / np.linalg.norm(v_directions, axis=1)).T
+        fv_directions = (fv_directions + constants.NOISE_COEF * randomization) #/ (1 + constants.NOISE_COEF)
+        fv_directions = (fv_directions.T / np.linalg.norm(fv_directions, axis=1)).T
 
-        # Record new directions of viscek pedestrians
-        pedestrians.directions[viscek] = v_directions * self.step_size
+
+        # # Record new directions of viscek pedestrians
+        # pedestrians.directions[viscek] = v_directions * self.step_size
+        pedestrians.directions[fv] = fv_directions * self.step_size
+        
+        # Add enslaving factor of leader's direction to following particles
+        f_directions = pedestrians.directions[following]
+        # f_directions = (f_directions.T / np.linalg.norm(f_directions, axis=1)).T
+        l_directions = agent.direction #/ self.step_size
+        f_directions = agent.enslaving_degree * l_directions + (1 - agent.enslaving_degree) * f_directions
+        pedestrians.directions[following] = f_directions #* self.step_size
         
         # Record new positions of exiting, following and viscek pedestrians
         pedestrians.positions[efv] += pedestrians.directions[efv] 
@@ -409,6 +440,8 @@ class EvacuationEnv(gym.Env):
     def __init__(self, 
         experiment_name='test',
         number_of_pedestrians=constants.NUM_PEDESTRIANS,
+        # leader params
+        enslaving_degree=constants.ENSLAVING_DEGREE,
         # area params
         width=constants.WIDTH,
         height=constants.HEIGHT,
@@ -436,7 +469,7 @@ class EvacuationEnv(gym.Env):
             max_timesteps=max_timesteps, n_episodes=n_episodes, n_timesteps=n_timesteps)
         
         # setup agent
-        self.agent = Agent()
+        self.agent = Agent(enslaving_degree=enslaving_degree)
         self.intrinsic_reward_coef = intrinsic_reward_coef
         self.episode_reward = 0
         self.episode_intrinsic_reward = 0
@@ -516,7 +549,7 @@ class EvacuationEnv(gym.Env):
                 "overall_timesteps" : self.time.overall_timesteps
             }
             log.info('\t'.join([f'{key}={value}' for key, value in logging_dict.items()]))
-            wandb.log(logging_dict)
+            # wandb.log(logging_dict)
         
         self.episode_reward = 0
         self.episode_intrinsic_reward = 0
