@@ -18,11 +18,12 @@ from src.env import constants
 from src.params import WALK_DIAGRAM_LOGGING_FREQUENCY
 
 from typing import Tuple, List, Dict
+import numpy.typing as npt
 
 import wandb
 
 
-def setup_logging(verbose, experiment_name):
+def setup_logging(verbose: bool, experiment_name: str) -> None:
     logs_folder = constants.SAVE_PATH_LOGS
     if not os.path.exists(logs_folder): os.makedirs(logs_folder)
 
@@ -56,13 +57,33 @@ class Status(UserEnum):
 
 
 class SwitchDistances:
-    to_leader     = constants.SWITCH_DISTANCE_TO_LEADER
-    to_exit       = constants.SWITCH_DISTANCE_TO_EXIT
-    to_escape     = constants.SWITCH_DISTANCE_TO_ESCAPE
-    to_pedestrian = constants.SWITCH_DISTANCE_TO_OTHER_PEDESTRIAN
+    to_leader: float     = constants.SWITCH_DISTANCE_TO_LEADER
+    to_exit: float       = constants.SWITCH_DISTANCE_TO_EXIT
+    to_escape: float     = constants.SWITCH_DISTANCE_TO_ESCAPE
+    to_pedestrian: float = constants.SWITCH_DISTANCE_TO_OTHER_PEDESTRIAN
 
 
-def is_distance_low(pedestrians_positions, destination, radius):
+def is_distance_low(
+    pedestrians_positions: npt.NDArray, 
+    destination: npt.NDArray, 
+    radius: float
+    ) -> npt.NDArray:
+    """Get boolean matrix showing pedestrians,
+    which are closer to destination than raduis 
+
+    Args:
+        pedestrians_positions (npt.NDArray): coordinates of pedestrians 
+        (dim: [n x 2])
+        
+        destination (npt.NDArray): coordinates of destination
+        (dim: [2])
+        
+        radius (float): max distance to destination
+
+    Returns:
+        npt.NDArray: boolean matrix
+    """
+    
     distances = distance_matrix(
         pedestrians_positions, np.expand_dims(destination, axis=0), 2
     )
@@ -76,50 +97,65 @@ def sum_distance(pedestrians_positions, destination):
     )
     return distances.sum() / pedestrians_positions.shape[0]
 
+class Reward:
+    def __init__(self, 
+        is_new_exiting_reward: bool,
+        is_new_followers_reward: bool
+        ) -> None:
+        
+        self.is_new_exiting_reward = is_new_exiting_reward
+        self.is_new_followers_reward = is_new_followers_reward
 
-def estimate_intrinsic_reward(pedestrians_positions, exit_position):
-    """This is intrinsic reward, which is given to the agent at each step"""
-    return (0 - sum_distance(pedestrians_positions, exit_position))
+    def estimate_intrinsic_reward(self, pedestrians_positions, exit_position):
+        """This is intrinsic reward, which is given to the agent at each step"""
+        return (0 - sum_distance(pedestrians_positions, exit_position))
 
+    def estimate_status_reward(self, old_statuses, new_statuses, timesteps, num_pedestrians):
+        """This reward is based on how pedestrians update their status
+        
+        VISCEK or FOLLOWER --> EXITING  :  (15 +  5 * time_factor)
+        VISCEK             --> FOLLOWER :  (10 + 10 * time_factor)
+        """
+        reward = 0
+        time_factor = 1 - timesteps / (200 * num_pedestrians)
 
-def estimate_reward(old_statuses, new_statuses, timesteps, num_pedestrians):
-    """This reward is based on how pedestrians update their status
-    
-    VISCEK or FOLLOWER --> EXITING  :  (15 +  5 * time_factor)
-    VISCEK             --> FOLLOWER :  (10 + 10 * time_factor)
-    """
-    reward = 0
-    time_factor = 1 - timesteps / (200 * num_pedestrians)
+        # Reward for new exiting
+        if self.is_new_exiting_reward:
+            prev = np.logical_or(old_statuses == Status.VISCEK, 
+                                 old_statuses == Status.FOLLOWER)
+            curr = new_statuses == Status.EXITING
+            n = sum(np.logical_and(prev, curr))
+            reward += (15 + 10 * time_factor) * n
 
-    # Reward for new exiting
-    prev = np.logical_or(old_statuses == Status.VISCEK, old_statuses == Status.FOLLOWER)
-    curr = new_statuses == Status.EXITING
-    n = sum(np.logical_and(prev, curr))
-    reward += (15 + 10 * time_factor) * n
+        # Reward for new followers
+        if self.is_new_followers_reward:
+            prev = old_statuses == Status.VISCEK
+            curr = new_statuses == Status.FOLLOWER
+            n = sum(np.logical_and(prev, curr))
+            reward += (10 + 5 * time_factor) * n
 
-    # Reward for new followers
-    prev = old_statuses == Status.VISCEK
-    curr = new_statuses == Status.FOLLOWER
-    n = sum(np.logical_and(prev, curr))
-    reward += (10 + 5 * time_factor) * n
-    return reward
+        return reward
 
 
 def update_statuses(statuses, pedestrian_positions, agent_position, exit_position):
     """Measure statuses of all pedestrians based on their position"""
     new_statuses = statuses.copy()
 
-    condition = is_distance_low(
+    following = is_distance_low(
         pedestrian_positions, agent_position, SwitchDistances.to_leader)
-    new_statuses[condition] = Status.FOLLOWER
+    new_statuses[following] = Status.FOLLOWER
     
-    condition = is_distance_low(
+    exiting = is_distance_low(
         pedestrian_positions, exit_position, SwitchDistances.to_exit)
-    new_statuses[condition] = Status.EXITING
+    new_statuses[exiting] = Status.EXITING
     
-    condition = is_distance_low(
+    escaped = is_distance_low(
         pedestrian_positions, exit_position, SwitchDistances.to_escape)
-    new_statuses[condition] = Status.ESCAPED
+    new_statuses[escaped] = Status.ESCAPED
+    
+    viscek = np.logical_not(reduce(np.logical_or, (exiting, following, escaped)))
+    new_statuses[viscek] = Status.VISCEK
+    
     return new_statuses
 
 
@@ -253,11 +289,13 @@ def grad_potential_exit(
 
 class Area:
     def __init__(self, 
+        reward: Reward,
         width = constants.WIDTH, 
         height = constants.HEIGHT,
         step_size = constants.STEP_SIZE,
-        noise_coef = constants.NOISE_COEF
+        noise_coef = constants.NOISE_COEF,
         ):
+        self.reward = reward
         self.width = width
         self.height = height
         self.step_size = step_size
@@ -379,13 +417,13 @@ class Area:
             agent_position=agent.position,
             exit_position=self.exit.position
         )
-        reward_pedestrians = estimate_reward(
+        reward_pedestrians = self.reward.estimate_status_reward(
             old_statuses=old_statuses,
             new_statuses=new_pedestrians_statuses,
             timesteps=now,
             num_pedestrians=pedestrians.num
         )
-        intrinsic_reward = estimate_intrinsic_reward(
+        intrinsic_reward = self.reward.estimate_intrinsic_reward(
             pedestrians_positions=pedestrians.positions,
             exit_position=self.exit.position
         )
@@ -447,6 +485,8 @@ class EvacuationEnv(gym.Env):
         height=constants.HEIGHT,
         step_size=constants.STEP_SIZE,
         noise_coef=constants.NOISE_COEF,
+        is_new_exiting_reward=constants.IS_NEW_EXITING_REWARD,
+        is_new_followers_reward=constants.IS_NEW_FOLLOWERS_REWARD,
         intrinsic_reward_coef=constants.INTRINSIC_REWARD_COEF,
         # time params
         max_timesteps=constants.MAX_TIMESTEPS,
@@ -462,14 +502,19 @@ class EvacuationEnv(gym.Env):
         ) -> None:
         super(EvacuationEnv, self).__init__()
         # setup env
-        self.pedestrians = Pedestrians(num=number_of_pedestrians)        
-        self.area = Area(width=width, height=height, step_size=step_size,
-            noise_coef=noise_coef)
-        self.time = Time(
-            max_timesteps=max_timesteps, n_episodes=n_episodes, n_timesteps=n_timesteps)
+        self.pedestrians = Pedestrians(num=number_of_pedestrians)
+        
+        reward = Reward(is_new_exiting_reward=is_new_exiting_reward,
+            is_new_followers_reward=is_new_followers_reward)        
+        self.area = Area(reward=reward, width=width, height=height, 
+            step_size=step_size, noise_coef=noise_coef)
+        
+        self.time = Time(max_timesteps=max_timesteps, 
+            n_episodes=n_episodes, n_timesteps=n_timesteps)
         
         # setup agent
         self.agent = Agent(enslaving_degree=enslaving_degree)
+        
         self.intrinsic_reward_coef = intrinsic_reward_coef
         self.episode_reward = 0
         self.episode_intrinsic_reward = 0
@@ -477,7 +522,7 @@ class EvacuationEnv(gym.Env):
         self.enabled_gravity_embedding = enabled_gravity_embedding
         self.alpha = alpha
 
-        self.action_space = spaces.Box(low=-np.inf, high=np.inf, shape=(2,), dtype=np.float32)
+        self.action_space = spaces.Box(low=-1., high=1., shape=(2,), dtype=np.float32)
         self.observation_space = self._get_observation_space()
         
         # logging
@@ -549,7 +594,7 @@ class EvacuationEnv(gym.Env):
                 "overall_timesteps" : self.time.overall_timesteps
             }
             log.info('\t'.join([f'{key}={value}' for key, value in logging_dict.items()]))
-            # wandb.log(logging_dict)
+            wandb.log(logging_dict)
         
         self.episode_reward = 0
         self.episode_intrinsic_reward = 0
