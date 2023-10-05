@@ -375,7 +375,19 @@ class Area:
         fv_directions = np.concatenate((fv_directions_x[np.newaxis, :], 
                                         fv_directions_y[np.newaxis, :])).T
         fv_directions = (fv_directions.T / np.linalg.norm(fv_directions, axis=1)).T
-
+        
+        def estimate_mean_direction_among_neighbours(
+            intersection,           # [f+v, f+v+e] boolean matrix
+            efv_directions,         # [f+v+e, 2] vectors of directions of pedestrians
+            n_intersections):       # [f+v]    amount of neighbouring pedestrians
+            
+            fv_theta = np.arctan2((efv_directions[:, 0] * intersection).sum(axis=1) / n_intersections,
+                                  (efv_directions[:, 1] * intersection).sum(axis=1) / n_intersections)
+                                    
+            noise = np.random.normal(loc=0., scale=constants.NOISE_COEF, size=len(n_intersections))
+            fv_theta = fv_theta + noise
+            return np.vstack((np.cos(fv_theta), np.sin(fv_theta)))
+            
         # Create randomization noise to obtained directions
         # randomization = np.random.normal(loc=0.0, scale=self.step_size, size=(sum(viscek), 2))                        # -- only q=1 
         randomization = np.random.normal(loc=0.0, scale=self.step_size, size=(sum(viscek) + sum(following), 2))
