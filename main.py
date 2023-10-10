@@ -17,6 +17,7 @@ def setup_env(args, experiment_name):
         height=args.height,
         step_size=args.step_size,
         noise_coef=args.noise_coef,
+        is_termination_agent_wall_collision=args.is_termination_agent_wall_collision,
         is_new_exiting_reward=args.is_new_exiting_reward,
         is_new_followers_reward=args.is_new_followers_reward,
         intrinsic_reward_coef=args.intrinsic_reward_coef,

@@ -100,11 +100,13 @@ def sum_distance(pedestrians_positions, destination):
 class Reward:
     def __init__(self, 
         is_new_exiting_reward: bool,
-        is_new_followers_reward: bool
+        is_new_followers_reward: bool,
+        is_termination_agent_wall_collision: bool
         ) -> None:
         
         self.is_new_exiting_reward = is_new_exiting_reward
         self.is_new_followers_reward = is_new_followers_reward
+        self.is_termination_agent_wall_collision = is_termination_agent_wall_collision
 
     def estimate_intrinsic_reward(self, pedestrians_positions, exit_position):
         """This is intrinsic reward, which is given to the agent at each step"""
@@ -426,7 +428,7 @@ class Area:
             agent.position += agent.direction
             return agent, False, 0.
         else:
-            return agent, constants.TERMINATION_AGENT_WALL_COLLISION, -5.
+            return agent, self.reward.is_termination_agent_wall_collision, -5.
 
     def _if_wall_collision(self, agent : Agent):
         pt = agent.position + agent.direction
@@ -451,38 +453,54 @@ class EvacuationEnv(gym.Env):
     def __init__(self, 
         experiment_name='test',
         number_of_pedestrians=constants.NUM_PEDESTRIANS,
+        
         # leader params
         enslaving_degree=constants.ENSLAVING_DEGREE,
+        
         # area params
         width=constants.WIDTH,
         height=constants.HEIGHT,
         step_size=constants.STEP_SIZE,
         noise_coef=constants.NOISE_COEF,
+        
+        # reward params
+        is_termination_agent_wall_collision=constants.TERMINATION_AGENT_WALL_COLLISION,
         is_new_exiting_reward=constants.IS_NEW_EXITING_REWARD,
         is_new_followers_reward=constants.IS_NEW_FOLLOWERS_REWARD,
         intrinsic_reward_coef=constants.INTRINSIC_REWARD_COEF,
+        
         # time params
         max_timesteps=constants.MAX_TIMESTEPS,
         n_episodes=constants.N_EPISODES,
         n_timesteps=constants.N_TIMESTEPS,
+        
         # gravity embedding params
         enabled_gravity_embedding=constants.ENABLED_GRAVITY_EMBEDDING,
         alpha=constants.ALPHA,
+        
         # logging params
         verbose=False,
         render_mode=None,
         draw=False
+        
         ) -> None:
         super(EvacuationEnv, self).__init__()
+        
         # setup env
         self.pedestrians = Pedestrians(num=number_of_pedestrians)
         
-        reward = Reward(is_new_exiting_reward=is_new_exiting_reward,
-            is_new_followers_reward=is_new_followers_reward)        
-        self.area = Area(reward=reward, width=width, height=height, 
+        reward = Reward(
+            is_new_exiting_reward=is_new_exiting_reward,
+            is_new_followers_reward=is_new_followers_reward,
+            is_termination_agent_wall_collision=is_termination_agent_wall_collision)        
+        
+        self.area = Area(
+            reward=reward, 
+            width=width, height=height, 
             step_size=step_size, noise_coef=noise_coef)
         
-        self.time = Time(max_timesteps=max_timesteps, 
+        self.time = Time(
+            max_timesteps=max_timesteps, 
             n_episodes=n_episodes, n_timesteps=n_timesteps)
         
         # setup agent

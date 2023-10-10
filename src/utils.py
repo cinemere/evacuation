@@ -66,6 +66,8 @@ def parse_args(inline_mode=False, request=""):
              "entering the leader\'s zone of influence")
     reward_params.add_argument('--intrinsic-reward-coef', type=float, default=constants.INTRINSIC_REWARD_COEF,
         help='coefficient in front of intrinsic reward')
+    reward_params.add_argument('--is-termination-agent-wall-collision', type=str2bool, default=constants.TERMINATION_AGENT_WALL_COLLISION,
+        help='if True, agent\'s wall collision will terminate episode')
     
     time_params = parser.add_argument_group('time')
     time_params.add_argument('--max-timesteps', type=int, default=constants.MAX_TIMESTEPS,
