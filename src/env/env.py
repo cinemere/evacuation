@@ -323,7 +323,7 @@ class Area:
 
         # Check following pedestrians & record new directions for following pedestrians
         following = pedestrians.statuses == Status.FOLLOWER
-        # pedestrians.directions[following] = agent.direction  # TODO add coef for following leader's behavior.  # -- only q=1
+        # pedestrians.directions[following] = agent.direction
 
         # Check viscek pedestrians
         viscek = pedestrians.statuses == Status.VISCEK
@@ -370,35 +370,42 @@ class Area:
         # v_directions = np.concatenate((v_directions_x[np.newaxis, :], 
         #                                v_directions_y[np.newaxis, :])).T
         # v_directions = (v_directions.T / np.linalg.norm(v_directions, axis=1)).T               # -- only q=1 -- comment end
-        fv_directions_x = (intersection * efv_directions[:, 0]).sum(axis=1) / n_intersections
-        fv_directions_y = (intersection * efv_directions[:, 1]).sum(axis=1) / n_intersections
-        fv_directions = np.concatenate((fv_directions_x[np.newaxis, :], 
-                                        fv_directions_y[np.newaxis, :])).T
-        fv_directions = (fv_directions.T / np.linalg.norm(fv_directions, axis=1)).T
+        
+
+        # fv_directions_x = (intersection * efv_directions[:, 0]).sum(axis=1) / n_intersections                     # --- old noise -- comment begin
+        # fv_directions_y = (intersection * efv_directions[:, 1]).sum(axis=1) / n_intersections
+        # fv_directions = np.concatenate((fv_directions_x[np.newaxis, :], 
+        #                                 fv_directions_y[np.newaxis, :])).T
+        # fv_directions = (fv_directions.T / np.linalg.norm(fv_directions, axis=1)).T
+        # # Create randomization noise to obtained directions
+        # # randomization = np.random.normal(loc=0.0, scale=self.step_size, size=(sum(viscek), 2))                        # -- only q=1 
+        # randomization = np.random.normal(loc=0.0, scale=self.step_size, size=(sum(viscek) + sum(following), 2))
+        # randomization = (randomization.T / (np.linalg.norm(randomization, axis=1) + constants.EPS)).T
+        
+        # # # New direction = estimated_direction + noise
+        # # v_directions = (v_directions + constants.NOISE_COEF * randomization) #/ (1 + constants.NOISE_COEF)
+        # # v_directions = (v_directions.T / np.linalg.norm(v_directions, axis=1)).T
+        # fv_directions = (fv_directions + constants.NOISE_COEF * randomization) #/ (1 + constants.NOISE_COEF)
+        # fv_directions = (fv_directions.T / np.linalg.norm(fv_directions, axis=1)).T                              # --- old noise -- comment end
         
         def estimate_mean_direction_among_neighbours(
             intersection,           # [f+v, f+v+e] boolean matrix
             efv_directions,         # [f+v+e, 2] vectors of directions of pedestrians
             n_intersections):       # [f+v]    amount of neighbouring pedestrians
+        
+            fv_directions_x = (intersection * efv_directions[:, 0]).sum(axis=1) / n_intersections
+            fv_directions_y = (intersection * efv_directions[:, 1]).sum(axis=1) / n_intersections
             
-            fv_theta = np.arctan2((efv_directions[:, 0] * intersection).sum(axis=1) / n_intersections,
-                                  (efv_directions[:, 1] * intersection).sum(axis=1) / n_intersections)
+            fv_theta = np.arctan2(fv_directions_x, fv_directions_y)
                                     
             noise = np.random.normal(loc=0., scale=constants.NOISE_COEF, size=len(n_intersections))
             fv_theta = fv_theta + noise
-            return np.vstack((np.cos(fv_theta), np.sin(fv_theta)))
             
-        # Create randomization noise to obtained directions
-        # randomization = np.random.normal(loc=0.0, scale=self.step_size, size=(sum(viscek), 2))                        # -- only q=1 
-        randomization = np.random.normal(loc=0.0, scale=self.step_size, size=(sum(viscek) + sum(following), 2))
-        randomization = (randomization.T / (np.linalg.norm(randomization, axis=1) + constants.EPS)).T
-        
-        # # New direction = estimated_direction + noise
-        # v_directions = (v_directions + constants.NOISE_COEF * randomization) #/ (1 + constants.NOISE_COEF)
-        # v_directions = (v_directions.T / np.linalg.norm(v_directions, axis=1)).T
-        fv_directions = (fv_directions + constants.NOISE_COEF * randomization) #/ (1 + constants.NOISE_COEF)
-        fv_directions = (fv_directions.T / np.linalg.norm(fv_directions, axis=1)).T
+            return np.vstack((np.cos(fv_theta), np.sin(fv_theta)))
 
+        fv_directions = estimate_mean_direction_among_neighbours(
+            intersection, efv_directions, n_intersections
+        )            
 
         # # Record new directions of viscek pedestrians
         # pedestrians.directions[viscek] = v_directions * self.step_size
