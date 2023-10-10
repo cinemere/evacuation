@@ -100,13 +100,11 @@ def sum_distance(pedestrians_positions, destination):
 class Reward:
     def __init__(self, 
         is_new_exiting_reward: bool,
-        is_new_followers_reward: bool,
-        is_termination_agent_wall_collision: bool
+        is_new_followers_reward: bool
         ) -> None:
         
         self.is_new_exiting_reward = is_new_exiting_reward
         self.is_new_followers_reward = is_new_followers_reward
-        self.is_termination_agent_wall_collision = is_termination_agent_wall_collision
 
     def estimate_intrinsic_reward(self, pedestrians_positions, exit_position):
         """This is intrinsic reward, which is given to the agent at each step"""
@@ -325,38 +323,82 @@ class Area:
 
         # Check following pedestrians & record new directions for following pedestrians
         following = pedestrians.statuses == Status.FOLLOWER
+        # pedestrians.directions[following] = agent.direction
 
         # Check viscek pedestrians
         viscek = pedestrians.statuses == Status.VISCEK
         
+        # fv = np.logical_or(following, viscek)                                     # --- uncomment begin ---
+        # fv_directions = pedestrians.directions[fv]
+        # dm = distance_matrix(pedestrians.positions[viscek], # add exitors
+        #                      pedestrians.positions[fv], 2)
+        # intersection = np.where(dm < SwitchDistances.to_pedestrian, 1, 0)
+        # n_intersections = np.maximum(1, intersection.sum(axis=1))
+        # # pedestrians.normirate_directions()
+        # fv_directions = (fv_directions.T / np.linalg.norm(fv_directions, axis=1)).T 
+        # v_directions_x = (intersection * fv_directions[:, 0]).sum(axis=1) / n_intersections
+        # v_directions_y = (intersection * fv_directions[:, 1]).sum(axis=1) / n_intersections
+        # v_directions = np.concatenate((v_directions_x[np.newaxis, :], 
+        #                                v_directions_y[np.newaxis, :])).T
+        # v_directions = (v_directions.T / np.linalg.norm(v_directions, axis=1)).T  # ---  uncomment end  ---
+
         # Use all moving particles (efv -- exiting, following, viscek) to estimate the movement of viscek particles
         efv = reduce(np.logical_or, (exiting, following, viscek))
         efv_directions = pedestrians.directions[efv]
         efv_directions = (efv_directions.T / np.linalg.norm(efv_directions, axis=1)).T 
-        
-        # Find neighbours between following and viscek (fv) particles and all other moving particles
+
+        # To estimate Viscek model for (fv -- following and viscek) particles
         fv = reduce(np.logical_or, (following, viscek))
+        fv_directions = pedestrians.directions[fv]
+        fv_directions = (fv_directions.T / np.linalg.norm(fv_directions, axis=1)).T
+        
+        # # Find neighbours between viscek particles and all other moving particles   # -- only q=1 -- comment begin
+        # dm = distance_matrix(pedestrians.positions[viscek],
+        #                      pedestrians.positions[efv], 2)
+        # intersection = np.where(dm < SwitchDistances.to_pedestrian, 1, 0) 
+        # n_intersections = np.maximum(1, intersection.sum(axis=1))                   # -- only q=1 -- comment end
+        
+        # Find neighbours between viscek particles and all other moving particles
         dm = distance_matrix(pedestrians.positions[fv],
                              pedestrians.positions[efv], 2)
         intersection = np.where(dm < SwitchDistances.to_pedestrian, 1, 0) 
         n_intersections = np.maximum(1, intersection.sum(axis=1))
 
-        def estimate_mean_direction_among_neighbours(
-                intersection,           # [f+v, f+v+e]  boolean matrix
-                efv_directions,         # [f+v+e, 2]    vectors of directions of pedestrians
-                n_intersections         # [f+v]         amount of neighbouring pedestrians
-            ):
-            """Viscek model"""
+        # Estimate the contibution if each neighbouring particle & normirate the obtained directions 
+        # v_directions_x = (intersection * efv_directions[:, 0]).sum(axis=1) / n_intersections   # -- only q=1 -- comment begin
+        # v_directions_y = (intersection * efv_directions[:, 1]).sum(axis=1) / n_intersections
+        # v_directions = np.concatenate((v_directions_x[np.newaxis, :], 
+        #                                v_directions_y[np.newaxis, :])).T
+        # v_directions = (v_directions.T / np.linalg.norm(v_directions, axis=1)).T               # -- only q=1 -- comment end
         
-            # Estimate the contibution if each neighbouring particle 
+
+        # fv_directions_x = (intersection * efv_directions[:, 0]).sum(axis=1) / n_intersections                     # --- old noise -- comment begin
+        # fv_directions_y = (intersection * efv_directions[:, 1]).sum(axis=1) / n_intersections
+        # fv_directions = np.concatenate((fv_directions_x[np.newaxis, :], 
+        #                                 fv_directions_y[np.newaxis, :])).T
+        # fv_directions = (fv_directions.T / np.linalg.norm(fv_directions, axis=1)).T
+        # # Create randomization noise to obtained directions
+        # # randomization = np.random.normal(loc=0.0, scale=self.step_size, size=(sum(viscek), 2))                        # -- only q=1 
+        # randomization = np.random.normal(loc=0.0, scale=self.step_size, size=(sum(viscek) + sum(following), 2))
+        # randomization = (randomization.T / (np.linalg.norm(randomization, axis=1) + constants.EPS)).T
+        
+        # # # New direction = estimated_direction + noise
+        # # v_directions = (v_directions + constants.NOISE_COEF * randomization) #/ (1 + constants.NOISE_COEF)
+        # # v_directions = (v_directions.T / np.linalg.norm(v_directions, axis=1)).T
+        # fv_directions = (fv_directions + constants.NOISE_COEF * randomization) #/ (1 + constants.NOISE_COEF)
+        # fv_directions = (fv_directions.T / np.linalg.norm(fv_directions, axis=1)).T                              # --- old noise -- comment end
+        
+        def estimate_mean_direction_among_neighbours(
+            intersection,           # [f+v, f+v+e] boolean matrix
+            efv_directions,         # [f+v+e, 2] vectors of directions of pedestrians
+            n_intersections):       # [f+v]    amount of neighbouring pedestrians
+        
             fv_directions_x = (intersection * efv_directions[:, 0]).sum(axis=1) / n_intersections
             fv_directions_y = (intersection * efv_directions[:, 1]).sum(axis=1) / n_intersections
+            
             fv_theta = np.arctan2(fv_directions_x, fv_directions_y)
                                     
-            # Create randomization noise to obtained directions
             noise = np.random.normal(loc=0., scale=constants.NOISE_COEF, size=len(n_intersections))
-            
-            # New direction = estimated_direction + noise
             fv_theta = fv_theta + noise
             
             return np.vstack((np.cos(fv_theta), np.sin(fv_theta)))
@@ -365,14 +407,16 @@ class Area:
             intersection, efv_directions, n_intersections
         )            
 
-        # Record new directions of following and viscek pedestrians
+        # # Record new directions of viscek pedestrians
+        # pedestrians.directions[viscek] = v_directions * self.step_size
         pedestrians.directions[fv] = fv_directions * self.step_size
         
         # Add enslaving factor of leader's direction to following particles
         f_directions = pedestrians.directions[following]
-        l_directions = agent.direction
-        f_directions = agent.enslaving_degree * l_directions + (1. - agent.enslaving_degree) * f_directions
-        pedestrians.directions[following] = f_directions
+        # f_directions = (f_directions.T / np.linalg.norm(f_directions, axis=1)).T
+        l_directions = agent.direction #/ self.step_size
+        f_directions = agent.enslaving_degree * l_directions + (1 - agent.enslaving_degree) * f_directions
+        pedestrians.directions[following] = f_directions #* self.step_size
         
         # Record new positions of exiting, following and viscek pedestrians
         pedestrians.positions[efv] += pedestrians.directions[efv] 
@@ -428,7 +472,7 @@ class Area:
             agent.position += agent.direction
             return agent, False, 0.
         else:
-            return agent, self.reward.is_termination_agent_wall_collision, -5.
+            return agent, constants.TERMINATION_AGENT_WALL_COLLISION, -5.
 
     def _if_wall_collision(self, agent : Agent):
         pt = agent.position + agent.direction
@@ -453,54 +497,38 @@ class EvacuationEnv(gym.Env):
     def __init__(self, 
         experiment_name='test',
         number_of_pedestrians=constants.NUM_PEDESTRIANS,
-        
         # leader params
         enslaving_degree=constants.ENSLAVING_DEGREE,
-        
         # area params
         width=constants.WIDTH,
         height=constants.HEIGHT,
         step_size=constants.STEP_SIZE,
         noise_coef=constants.NOISE_COEF,
-        
-        # reward params
-        is_termination_agent_wall_collision=constants.TERMINATION_AGENT_WALL_COLLISION,
         is_new_exiting_reward=constants.IS_NEW_EXITING_REWARD,
         is_new_followers_reward=constants.IS_NEW_FOLLOWERS_REWARD,
         intrinsic_reward_coef=constants.INTRINSIC_REWARD_COEF,
-        
         # time params
         max_timesteps=constants.MAX_TIMESTEPS,
         n_episodes=constants.N_EPISODES,
         n_timesteps=constants.N_TIMESTEPS,
-        
         # gravity embedding params
         enabled_gravity_embedding=constants.ENABLED_GRAVITY_EMBEDDING,
         alpha=constants.ALPHA,
-        
         # logging params
         verbose=False,
         render_mode=None,
         draw=False
-        
         ) -> None:
         super(EvacuationEnv, self).__init__()
-        
         # setup env
         self.pedestrians = Pedestrians(num=number_of_pedestrians)
         
-        reward = Reward(
-            is_new_exiting_reward=is_new_exiting_reward,
-            is_new_followers_reward=is_new_followers_reward,
-            is_termination_agent_wall_collision=is_termination_agent_wall_collision)        
-        
-        self.area = Area(
-            reward=reward, 
-            width=width, height=height, 
+        reward = Reward(is_new_exiting_reward=is_new_exiting_reward,
+            is_new_followers_reward=is_new_followers_reward)        
+        self.area = Area(reward=reward, width=width, height=height, 
             step_size=step_size, noise_coef=noise_coef)
         
-        self.time = Time(
-            max_timesteps=max_timesteps, 
+        self.time = Time(max_timesteps=max_timesteps, 
             n_episodes=n_episodes, n_timesteps=n_timesteps)
         
         # setup agent
