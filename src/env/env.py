@@ -366,7 +366,7 @@ class Area:
         )            
 
         # Record new directions of following and viscek pedestrians
-        pedestrians.directions[fv] = fv_directions * self.step_size
+        pedestrians.directions[fv] = fv_directions.T * self.step_size
         
         # Add enslaving factor of leader's direction to following particles
         f_directions = pedestrians.directions[following]
@@ -738,11 +738,15 @@ class EvacuationEnv(gym.Env):
         # Draw exit
         ax.plot(exit_coordinates[0], exit_coordinates[1], marker='X', color='green')
         
+        from itertools import cycle
+        colors = cycle([item['color'] for item in ax._get_lines._cycler_items])
+        
         # Draw pedestrians
         pedestrian_position_plots = {}
         for status in Status.all():
             selected_pedestrians = self.pedestrians.memory['statuses'][0] == status
-            color = next(ax._get_lines.prop_cycler)['color']
+            color = next(colors)
+            # color = next(ax._get_lines.prop_cycler)['color']
             pedestrian_position_plots[status] = \
                 ax.plot(self.pedestrians.memory['positions'][0][selected_pedestrians, 0], 
                 self.pedestrians.memory['positions'][0][selected_pedestrians, 1],
