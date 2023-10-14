@@ -27,4 +27,4 @@ SAVE_PATH_MODELS = 'saved_data/models'
 
 DEVICE = "cpu"
 
-WALK_DIAGRAM_LOGGING_FREQUENCY = 150   # frequency in episodes
+WALK_DIAGRAM_LOGGING_FREQUENCY = 500_000   # frequency in episodes  (overall_timesteps: 2_000_000)
