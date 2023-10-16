@@ -1,8 +1,0 @@
-{
-    "files.exclude": 
-    {
-       "**/__pycache__": true
-    },
-    
-    "python.defaultInterpreterPath": "/home/cinemere/work/evacuation/venv/bin/python3"
-}
