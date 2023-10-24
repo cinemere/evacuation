@@ -351,10 +351,11 @@ class Area:
             # Estimate the contibution if each neighbouring particle 
             fv_directions_x = (intersection * efv_directions[:, 0]).sum(axis=1) / n_intersections
             fv_directions_y = (intersection * efv_directions[:, 1]).sum(axis=1) / n_intersections
-            fv_theta = np.arctan2(fv_directions_x, fv_directions_y)
+            fv_theta = np.arctan2(fv_directions_y, fv_directions_x)
                                     
             # Create randomization noise to obtained directions
-            noise = np.random.normal(loc=0., scale=constants.NOISE_COEF, size=len(n_intersections))
+            # noise = np.random.normal(loc=0., scale=constants.NOISE_COEF, size=len(n_intersections))
+            noise = np.random.uniform(low=-self.noise_coef/2, high=self.noise_coef/2, size=len(n_intersections))
             
             # New direction = estimated_direction + noise
             fv_theta = fv_theta + noise
