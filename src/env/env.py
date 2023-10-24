@@ -663,11 +663,15 @@ class EvacuationEnv(gym.Env):
             0, 360, alpha=0.1, color='blue'
         )
         ax.add_patch(following_zone)
+
+        from itertools import cycle
+        colors = cycle([item['color'] for item in ax._get_lines._cycler_items])
         
         # Draw pedestrians
         for status in Status.all():
             selected_pedestrians = self.pedestrians.statuses == status
-            color = next(ax._get_lines.prop_cycler)['color']
+            color = next(colors)
+            # color = next(ax._get_lines.prop_cycler)['color']
             ax.plot(self.pedestrians.positions[selected_pedestrians, 0], 
                     self.pedestrians.positions[selected_pedestrians, 1],
                 lw=0, marker='.', color=color)
