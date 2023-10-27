@@ -1,2 +1,3 @@
 
-from src.env.env import EvacuationEnv
+from . import constants
+from .env import EvacuationEnv
