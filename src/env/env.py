@@ -101,9 +101,11 @@ class Reward:
     def __init__(self, 
         is_new_exiting_reward: bool,
         is_new_followers_reward: bool,
-        is_termination_agent_wall_collision: bool
+        is_termination_agent_wall_collision: bool,
+        init_reward_each_step: float
         ) -> None:
         
+        self.init_reward_each_step = init_reward_each_step
         self.is_new_exiting_reward = is_new_exiting_reward
         self.is_new_followers_reward = is_new_followers_reward
         self.is_termination_agent_wall_collision = is_termination_agent_wall_collision
@@ -118,7 +120,7 @@ class Reward:
         VISCEK or FOLLOWER --> EXITING  :  (15 +  5 * time_factor)
         VISCEK             --> FOLLOWER :  (10 + 10 * time_factor)
         """
-        reward = 0
+        reward = self.init_reward_each_step
         time_factor = 1 - timesteps / (200 * num_pedestrians)
 
         # Reward for new exiting
@@ -469,6 +471,7 @@ class EvacuationEnv(gym.Env):
         is_new_exiting_reward=constants.IS_NEW_EXITING_REWARD,
         is_new_followers_reward=constants.IS_NEW_FOLLOWERS_REWARD,
         intrinsic_reward_coef=constants.INTRINSIC_REWARD_COEF,
+        init_reward_each_step=constants.INIT_REWARD_EACH_STEP, 
         
         # time params
         max_timesteps=constants.MAX_TIMESTEPS,
@@ -493,7 +496,8 @@ class EvacuationEnv(gym.Env):
         reward = Reward(
             is_new_exiting_reward=is_new_exiting_reward,
             is_new_followers_reward=is_new_followers_reward,
-            is_termination_agent_wall_collision=is_termination_agent_wall_collision)        
+            is_termination_agent_wall_collision=is_termination_agent_wall_collision,
+            init_reward_each_step=init_reward_each_step)        
         
         self.area = Area(
             reward=reward, 

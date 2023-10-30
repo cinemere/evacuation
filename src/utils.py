@@ -68,6 +68,8 @@ def parse_args(inline_mode=False, request=""):
         help='coefficient in front of intrinsic reward')
     reward_params.add_argument('--is-termination-agent-wall-collision', type=str2bool, default=constants.TERMINATION_AGENT_WALL_COLLISION,
         help='if True, agent\'s wall collision will terminate episode')
+    reward_params.add_argument('--init-reward-each-step', type=float, default=constants.INIT_REWARD_EACH_STEP,
+        help='constant reward given on each step of agent')
     
     time_params = parser.add_argument_group('time')
     time_params.add_argument('--max-timesteps', type=int, default=constants.MAX_TIMESTEPS,
