@@ -78,7 +78,7 @@ for i_emb in ${!emb_states[@]}; do
                                 query="--exp-name ${exp_name} ${reward_setup} ${env_setup} ${learn_setup}"
                                 echo ""; echo "All params:"; echo ""; echo "---->    ${query}"; echo ""
                             
-                                python3 main.py $query
+                                python3 main.py $query &
 
                             done
                             
