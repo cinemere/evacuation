@@ -2,6 +2,17 @@
 
 RL environment to study the evacuation of pedestrians for dummly rooms.
 
+## Examples of trajectories
+
+
+| Comments | Strict leader <br> (enslaving degree = 1.0) | Calm leader <br>  (enslaving degree < 1.0) |
+| --- | --- | --- |
+| exitrew & followrew | ![Alt text](static/n60_grademb_exitrew_followrew_intrrew-1._initrew-0._alpha-5_noise-.5_ensldegree-1._n-60_lr-0.0003_gamma-0.99_s-gra_a-5.0_ss-0.01_vr-0.1_01-Nov-00-08-40_ep-2000.gif)  <br> After saving a big group of pedestrians, leader helped 2 groups of lost pedestrians to find the way to exit | ![Alt text](static/n60_grademb_exitrew_followrew_intrrew-0._initrew--1._alpha-2_noise-.2_ensldegree-.5_n-60_lr-0.0003_gamma-0.99_s-gra_a-2.0_ss-0.01_vr-0.1_12-Nov-18-30-06_ep-2000.gif) <br> Leader tends to work with big groups of pedestrians and navigates them to exit zone |
+| only exitrew | ![Alt text](static/n60_grademb_exitrew_nofollowrew_intrrew-0._initrew-0._alpha-2_noise-.2_ensldegree-1._n-60_lr-0.0003_gamma-0.99_s-gra_a-2.0_ss-0.01_vr-0.1_01-Nov-02-16-56_ep-2000.gif) <br> At the beginning of the episode leader helps pedestrians near exit and it the end finds the lost ones left far from exit | ![Alt text](static/n60_grademb_exitrew_nofollowrew_intrrew-0._initrew-0._alpha-4_noise-.5_ensldegree-.1_n-60_lr-0.0003_gamma-0.99_s-gra_a-4.0_ss-0.01_vr-0.1_01-Nov-09-37-54_ep-1500.gif) <br> Here we can see how pedestrians navigate themselves based on the directions of their neighbours. Leader is trying to collect big group to navigate it to exit. |
+| only exitrew | ![Alt text](static/n60_grademb_exitrew_nofollowrew_intrrew-1._initrew-0._alpha-2_noise-.2_ensldegree-1._n-60_lr-0.0003_gamma-0.99_s-gra_a-2.0_ss-0.01_vr-0.1_01-Nov-14-55-25_ep-2000.gif) <br> Due to need to escort pedestrians to exit zone, leader tries to collect as much pedestrians as he can on his first reach of exit.| ![Alt text](static/n60_grademb_exitrew_nofollowrew_intrrew-1._initrew-0._alpha-2_noise-.2_ensldegree-.5_n-60_lr-0.0003_gamma-0.99_s-gra_a-2.0_ss-0.01_vr-0.1_01-Nov-14-55-25_ep-2000.gif) <br> Sometimes pedestrians can suddenly panic and try to move in bad direction. Leader mey try to return them or catch all close ones.|
+|only followers reward|![Alt text](static/n60_grademb_noexitrew_followrew_intrrew-1._initrew-0._alpha-5_noise-.2_ensldegree-1._n-60_lr-0.0003_gamma-0.99_s-gra_a-5.0_ss-0.01_vr-0.1_03-Nov-04-20-47_ep-2000.gif) <br> Even when leader is not given the reward for pedestrians reaching exit zone, he tries to escort them to exit asap.||
+
+
 ## Installation
 
 ```
@@ -24,24 +35,61 @@ export PYTHONPATH=$PWD
 wandb init
 ```
 
-To run experiment:
+To run experiment from command line:
 ```
 python main.py --exp-name "my-first-experiment"
 ```
 
-## Documentation
+To use evacuation env in your code:
 
-Most valuable parametes can be set throw argparse module. However some parameters are still in files:\
-- `src/params.py` $\rightarrow$ parameters of the model (+ logging params)
-- `src/env/constants.py` $\rightarrow$ parameters of the environment
+```python
+from src.env import EvacuationEnv
+from src.agents import RandomAgent
 
-**Note.** Currently only stable baselines model is available.
+# Initialize environment
+env = EvacuationEnv()
+
+# Initialize random agent
+random_agent = RandomAgent(env.action_space)
+
+# Initialize episode
+obs, _ = env.reset()
+terminated, truncated = False, False
+
+# Episode loop
+while not (terminated or truncated):
+    action = random_agent.act(obs)
+    obs, reward, terminated, truncated, _ = env.step(action)
+
+env.save_animation()  # save episode trajectory in giff
+env.render()          # save episode trajectory in png
 
 ```
-usage: main.py [-h] [--origin {ppo,a2c}] [--learn-timesteps LEARN_TIMESTEPS] [--learning-rate LEARNING_RATE] [--gamma GAMMA] [--device {cpu,cuda}]
-               [--exp-name EXP_NAME] [-v] [--draw] [-n NUMBER_OF_PEDESTRIANS] [--width WIDTH] [--height HEIGHT] [--step-size STEP_SIZE]
-               [--noise-coef NOISE_COEF] [--intrinsic-reward-coef INTRINSIC_REWARD_COEF] [--max-timesteps MAX_TIMESTEPS] [--n-episodes N_EPISODES]
-               [--n-timesteps N_TIMESTEPS] [-e ENABLED_GRAVITY_EMBEDDING] [--alpha ALPHA]
+
+
+## Documentation
+
+**Note.** Currently only stable baselines PPO model is available.
+
+Most valuable parametes can be set throw argparse module. However some parameters are still in files, here such parameters are outlined:
+
+- [`src/params.py`](src/params.py) $\rightarrow$ parameters of the model (+ logging params)
+  - `WALK_DIAGRAM_LOGGING_FREQUENCY` $\rightarrow$ frequency of saving giff of episode trajectories 
+- [`src/env/constants.py`](src/env/constants.py) $\rightarrow$ default parameters of the environment
+  - `SWITCH_DISTANCE_TO_LEADER` $\rightarrow$ radius of catch by leader
+  - `SWITCH_DISTANCE_TO_OTHER_PEDESTRIAN` $\rightarrow$ radius of interactions between pedestrians
+  - `SWITCH_DISTANCE_TO_EXIT` $\rightarrow$ raduis of the exit zone
+  - `SWITCH_DISTANCE_TO_ESCAPE` $\rightarrow$ raduis of the escape point
+
+- arguments passed to `EvacuationEnv` ([`src/utils.py`](src/utils.py))
+
+```
+usage: main.py [-h] [--origin {ppo,a2c}] [--learn-timesteps LEARN_TIMESTEPS] [--learning-rate LEARNING_RATE] [--gamma GAMMA] [--device {cpu,cuda}] [--exp-name EXP_NAME]
+               [-v] [--draw] [-n NUMBER_OF_PEDESTRIANS] [--width WIDTH] [--height HEIGHT] [--step-size STEP_SIZE] [--noise-coef NOISE_COEF]
+               [--enslaving-degree ENSLAVING_DEGREE] [--is-new-exiting-reward IS_NEW_EXITING_REWARD] [--is-new-followers-reward IS_NEW_FOLLOWERS_REWARD]
+               [--intrinsic-reward-coef INTRINSIC_REWARD_COEF] [--is-termination-agent-wall-collision IS_TERMINATION_AGENT_WALL_COLLISION]
+               [--init-reward-each-step INIT_REWARD_EACH_STEP] [--max-timesteps MAX_TIMESTEPS] [--n-episodes N_EPISODES] [--n-timesteps N_TIMESTEPS]
+               [-e ENABLED_GRAVITY_EMBEDDING] [--alpha ALPHA]
 
 options:
   -h, --help            show this help message and exit
@@ -69,8 +117,22 @@ env:
                         length of pedestrian's and agent's step (default: 0.01)
   --noise-coef NOISE_COEF
                         noise coefficient of randomization in viscek model (default: 0.2)
+
+leader params:
+  --enslaving-degree ENSLAVING_DEGREE
+                        enslaving degree of leader in generalized viscek model (default: 0.1)
+
+reward params:
+  --is-new-exiting-reward IS_NEW_EXITING_REWARD
+                        if True, positive reward will be given for each pedestrian, entering the exiting zone (default: True)
+  --is-new-followers-reward IS_NEW_FOLLOWERS_REWARD
+                        if True, positive reward will be given for each pedestrian, entering the leader's zone of influence (default: True)
   --intrinsic-reward-coef INTRINSIC_REWARD_COEF
                         coefficient in front of intrinsic reward (default: 1.0)
+  --is-termination-agent-wall-collision IS_TERMINATION_AGENT_WALL_COLLISION
+                        if True, agent's wall collision will terminate episode (default: False)
+  --init-reward-each-step INIT_REWARD_EACH_STEP
+                        constant reward given on each step of agent (default: 0.0)
 
 time:
   --max-timesteps MAX_TIMESTEPS
