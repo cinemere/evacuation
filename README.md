@@ -15,7 +15,7 @@ RL environment to study the evacuation of pedestrians for dummly rooms.
 
 ## Installation
 
-```
+```bash
 git clone https://github.com/cinemere/evacuation
 cd evacuation
 python -m venv venv
@@ -23,20 +23,36 @@ source venv/bin/activate
 pip install -r requirements.txt
 ```
 
-## Run experiments
+## Quick start
+
+### Setup environment variables
 
 **Before running experints** don't forget to:
 
-```
+```bash
 export PYTHONPATH=$PWD
 ```
+
+### Wandb cheat sheet
+
 **To enable [wandb](https://wandb.ai/site) logging** you need to create your wandb profile and run the following once:
-```
+```bash
 wandb init
 ```
 
+* **To disable wandb logging** (for debugging or other reason) you need to run:
+  ```bash
+  wandb disabled
+  ```
+* **To enable wandb logging** (when you need to turn on looging again) you need to run:
+  ```bash
+  wandb enabled
+  ```
+
+### Run experiments! 🏃
+
 To run experiment from command line:
-```
+```bash
 python main.py --exp-name "my-first-experiment"
 ```
 
@@ -61,8 +77,8 @@ while not (terminated or truncated):
     action = random_agent.act(obs)
     obs, reward, terminated, truncated, _ = env.step(action)
 
-env.save_animation()  # save episode trajectory in giff
-env.render()          # save episode trajectory in png
+env.save_animation()      # save episode trajectory in giff
+env.render()              # save episode trajectory in png
 
 ```
 
@@ -70,6 +86,8 @@ env.render()          # save episode trajectory in png
 ## Documentation
 
 **Note.** Currently only stable baselines PPO model is available.
+
+### Input parameters
 
 Most valuable parametes can be set throw argparse module. However some parameters are still in files, here such parameters are outlined:
 
@@ -147,3 +165,18 @@ gravity embedding params:
                         if True use gravity embedding (default: True)
   --alpha ALPHA         alpha parameter of gravity gradient embedding (default: 3)
 ```
+
+### Outputs
+
+Outputs are to be saved in following directories:
+
+- `saved_data/giff/` $\rightarrow$ episode trajectoriy in giff
+- `saved_data/png/` $\rightarrow$ episode trajectory in png
+- `saved_data/models/` $\rightarrow$ trained models
+- `saved_data/logs/` $\rightarrow$ `${exp_name}.txt` log of episode trajectories
+- `saved_data/tb-logs/` $\rightarrow$ `tensorboard` logs
+- `wandb/` $\rightarrow$ `wandb` logs
+
+  **Example of logging of conducted experiment**
+
+  ![Alt text](static/wandb_screenshot.png)
