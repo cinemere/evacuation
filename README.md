@@ -4,9 +4,9 @@ RL environment to study the evacuation of pedestrians for dummly rooms.
 
 ## Learning curves for [stable-baselines3](https://github.com/DLR-RM/stable-baselines3/tree/master) PPO agent
 
-![image](https://github.com/cinemere/evacuation/assets/55746414/f5a80054-8035-414e-9474-df1c7e984560)
-
 [wandb report link](https://wandb.ai/albinakl/evacuation/reports/Smoothed-runs-for-paper--Vmlldzo2MTY2MDU0)
+
+![image](https://github.com/cinemere/evacuation/assets/55746414/f5a80054-8035-414e-9474-df1c7e984560)
 
 ## Examples of trajectories
 
@@ -184,4 +184,4 @@ Outputs are to be saved in following directories:
 
   **Example of logging of conducted experiment**
 
-  ![Alt text](static/wandb_screenshot.png)
+![image](static/wandb_screenshot.png)
