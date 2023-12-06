@@ -6,7 +6,8 @@ RL environment to study the evacuation of pedestrians for dummly rooms.
 
 [wandb report: smoothed learning curves](https://wandb.ai/albinakl/evacuation/reports/Smoothed-runs-for-paper--Vmlldzo2MTY2MDU0?accessToken=kg5mc3vg9iaukjbgm5t2giijxk95uklzupdkjhiltspgz9epg5ly7s0280lc0def)
 
-![image](https://github.com/cinemere/evacuation/assets/55746414/f5a80054-8035-414e-9474-df1c7e984560)
+![image](https://github.com/cinemere/evacuation/assets/55746414/989d0183-94ae-421a-b42d-018cafa80fbb)
+![image](https://github.com/cinemere/evacuation/assets/55746414/ea2a1a7b-071a-4eb2-b352-02be2edac7df)
 
 [wandb report: comparing rewards study](https://wandb.ai/albinakl/evacuation/reports/Comparing-rewards--Vmlldzo1OTgxMTMw?accessToken=5wgmelubk2p1ws14i22zewpifo00n4dmer1i0uq4db4lhb4231qujrklwzu7bcsp)
 
