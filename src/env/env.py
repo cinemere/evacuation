@@ -572,7 +572,7 @@ class EvacuationEnv(gym.Env):
 
         return observation
 
-    def reset(self, seed=None):
+    def reset(self, seed=None, options=None):
         if self.save_next_episode_anim or (self.time.n_episodes + 1) % WALK_DIAGRAM_LOGGING_FREQUENCY == 0:
             self.draw = True
             self.save_next_episode_anim = True
