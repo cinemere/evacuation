@@ -4,11 +4,11 @@
 
 NUM_PEDESTRIANS = 10                        # ! number of pedestrians
 EPS = 1e-8 
-ENSLAVING_DEGREE = 0.1                      # ! leader's enslaving degree
+ENSLAVING_DEGREE = 1.                       # ! leader's enslaving degree
 
 # Area params
-WIDTH = 1.0                                 # ! geometry of environment space: width
-HEIGHT = 1.0                                # ! geometry of environment space: height
+WIDTH = 1.                                  # ! geometry of environment space: width
+HEIGHT = 1.                                 # ! geometry of environment space: height
 STEP_SIZE = 0.01                            # ! 0.1, 0.05, 0.01
 NOISE_COEF = 0.2                            # ! randomization in viscek model
 
