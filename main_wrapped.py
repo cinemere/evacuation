@@ -1,7 +1,7 @@
 # %%
 import os
 import numpy as np
-from stable_baselines3 import PPO
+from stable_baselines3 import PPO, SAC
 import wandb
 
 from src.env import EvacuationEnv
@@ -45,6 +45,15 @@ def setup_model(args, env):
             learning_rate=args.learning_rate,
             gamma=args.gamma
         )
+    elif args.origin == 'sac':
+        model = SAC(
+            "MlpPolicy",
+            env, verbose=1,
+            tensorboard_log=params.SAVE_PATH_TBLOGS,
+            device=args.device,
+            learning_rate=args.learning_rate,
+            gamma=args.gamma
+        )
     else:
         raise NotImplementedError
     return model
@@ -70,6 +79,7 @@ args = parse_args(True, [
     "--exp-name", "test-stacking-stacks-1-grav",
     "-e", "true",
     # "-e", "false",
+    "--intrinsic-reward-coef", "0",
     ])
 # %%
 vars(args)

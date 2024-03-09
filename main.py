@@ -1,5 +1,6 @@
 import os
 import numpy as np
+from gymnasium.wrappers import FrameStack, FlattenObservation
 from stable_baselines3 import PPO
 import wandb
 
@@ -30,14 +31,33 @@ def setup_env(args, experiment_name):
         render_mode=None,
         draw=args.draw
     ) 
+
+    # Dict[str, Box] observation to Box observation
+    env = FlattenObservation(env)
+    
+    # add stacked (previos observations)
+    if args.num_obs_stacks != 1:
+        env = FrameStack(env, num_stack=args.num_obs_stacks)
+        ## TODO may be we should filter some stacks here
+        env = FlattenObservation(env)
+
     return env
 
 
-def setup_model(args, env):
+def setup_model(args, env): 
     
     if args.origin == 'ppo':
         model = PPO(
-            "MultiInputPolicy", 
+            "MlpPolicy", 
+            env, verbose=1, 
+            tensorboard_log=params.SAVE_PATH_TBLOGS,
+            device=args.device,
+            learning_rate=args.learning_rate,
+            gamma=args.gamma
+        )
+    elif args.origin == 'sac':
+        model = PPO(
+            "MlpPolicy", 
             env, verbose=1, 
             tensorboard_log=params.SAVE_PATH_TBLOGS,
             device=args.device,

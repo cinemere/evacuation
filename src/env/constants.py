@@ -12,6 +12,9 @@ HEIGHT = 1.0                                # ! geometry of environment space: h
 STEP_SIZE = 0.01                            # ! 0.1, 0.05, 0.01
 NOISE_COEF = 0.2                            # ! randomization in viscek model
 
+# Observation params
+NUM_OBS_STACKS = 1                          # ! number of times to stack observation (via FrameStack wrapper)
+
 # Reward params
 TERMINATION_AGENT_WALL_COLLISION = False    # ! is or no termination for agent's wall collision
 INTRINSIC_REWARD_COEF = 1.                  # ! coef of intrinsic reward

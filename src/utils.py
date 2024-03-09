@@ -23,7 +23,7 @@ def parse_args(inline_mode=False, request=""):
     
     model_params = parser.add_argument_group('model')
     model_params.add_argument('--origin', type=str, default='ppo',
-        choices=['ppo', 'a2c'], help="which model to use")
+        choices=['ppo', 'a2c', 'sac'], help="which model to use")
     model_params.add_argument('--learn-timesteps', type=int, default=5_000_000,
         help='number of timesteps to learn the model')
     model_params.add_argument('--learning-rate', type=float, default=0.0003,
@@ -52,6 +52,8 @@ def parse_args(inline_mode=False, request=""):
         help='length of pedestrian\'s and agent\'s step')
     env_params.add_argument('--noise-coef', type=float, default=constants.NOISE_COEF,
         help='noise coefficient of randomization in viscek model')
+    env_params.add_argument('--num-obs-stacks', type=int, default=constants.NUM_OBS_STACKS,
+        help="number of times to stack observation")
     
     leader_params = parser.add_argument_group('leader params')
     leader_params.add_argument('--enslaving-degree', type=float, default=constants.ENSLAVING_DEGREE,
