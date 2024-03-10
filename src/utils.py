@@ -107,8 +107,7 @@ def get_experiment_name(args):
         f"n-{args.number_of_pedestrians}",
         f"lr-{args.learning_rate}",
         f"gamma-{args.gamma}",
-        f"s-{f'gra_a-{args.alpha}' if args.enabled_gravity_embedding else \
-            'rel' if args.use_relative_positions else 'ped'}",
+        f"s-{f'gra_a-{args.alpha}' if args.enabled_gravity_embedding else 'rel' if args.use_relative_positions else 'ped'}",
         f"ss-{args.step_size}",
         f"vr-{constants.SWITCH_DISTANCE_TO_OTHER_PEDESTRIAN}"
     ]
