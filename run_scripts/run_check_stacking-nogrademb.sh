@@ -1,4 +1,6 @@
-common_args="-e true --init-reward-each-step=-1. --intrinsic-reward-coef 0 --enslaving-degree 1"
+common_args="-e false --init-reward-each-step=-1. --intrinsic-reward-coef 0 --enslaving-degree 1"
+
+# TODO: fix exp names in future runs! (test-stacking-NUM_STACKS-base-ORIGIN)
 
 query1="--exp-name test-stacking-2-grav-ppo --num-obs-stacks 2 --origin ppo ${common_args}"
 query2="--exp-name test-stacking-1-grav-ppo --num-obs-stacks 1 --origin ppo ${common_args}"
