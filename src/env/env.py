@@ -791,6 +791,10 @@ class EvacuationEnv(gym.Env):
 
     def close(self):
         pass
+    
+    def seed(self, seed=None):
+        from gym.utils.seeding import np_random
+        return np_random(seed)
 # # %%
 # e = EvacuationEnv(number_of_pedestrians=100)
 

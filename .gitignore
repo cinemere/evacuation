@@ -1,10 +1,17 @@
+# vscode settings
 .vscode/
 
+# python libraries
 venv/
 
+# cached files
 __pycache__/
 
+# results of experiments
 saved_data/
 wandb/
+cartpole_dqn_seed0/
+cartpole_dqn_seed0*
 
+# sandbox debug files
 test.py
