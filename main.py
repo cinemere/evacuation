@@ -4,8 +4,7 @@ from gymnasium.wrappers import FrameStack, FlattenObservation
 from stable_baselines3 import PPO
 import wandb
 
-from src.env import EvacuationEnv
-from src.env import constants
+from src.env import EvacuationEnv, RelativePosition, constants
 from src import params
 from src.utils import get_experiment_name, parse_args
 
@@ -30,7 +29,11 @@ def setup_env(args, experiment_name):
         verbose=args.verbose,
         render_mode=None,
         draw=args.draw
-    ) 
+    )
+    
+    # enable relative positions of pedestrians and exit
+    if args.use_relative_positions:
+        env = RelativePosition(env)
 
     # Dict[str, Box] observation to Box observation
     env = FlattenObservation(env)

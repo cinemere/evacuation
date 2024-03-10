@@ -14,6 +14,7 @@ NOISE_COEF = 0.2                            # ! randomization in viscek model
 
 # Observation params
 NUM_OBS_STACKS = 1                          # ! number of times to stack observation (via FrameStack wrapper)
+USE_RELATIVE_POSITIONS = False              # ! add relative positions wrapper (can be use only WITHOUT gravity embedding)
 
 # Reward params
 TERMINATION_AGENT_WALL_COLLISION = False    # ! is or no termination for agent's wall collision

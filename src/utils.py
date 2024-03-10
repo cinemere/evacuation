@@ -54,6 +54,8 @@ def parse_args(inline_mode=False, request=""):
         help='noise coefficient of randomization in viscek model')
     env_params.add_argument('--num-obs-stacks', type=int, default=constants.NUM_OBS_STACKS,
         help="number of times to stack observation")
+    env_params.add_argument('-rel', '--use-relative-positions', type=str2bool, default=constants.USE_RELATIVE_POSITIONS,
+        help="add relative positions wrapper (can be use only WITHOUT gravity embedding)")
     
     leader_params = parser.add_argument_group('leader params')
     leader_params.add_argument('--enslaving-degree', type=float, default=constants.ENSLAVING_DEGREE,
@@ -80,7 +82,6 @@ def parse_args(inline_mode=False, request=""):
         help = 'number of episodes already done (for pretrained models)')
     time_params.add_argument('--n-timesteps', type=int, default=constants.N_TIMESTEPS,
         help = 'number of timesteps already done (for pretrained models)')
-    
 
     gravity_embedding_params = parser.add_argument_group('gravity embedding params')    
     gravity_embedding_params.add_argument('-e', '--enabled-gravity-embedding', type=str2bool,
@@ -93,6 +94,10 @@ def parse_args(inline_mode=False, request=""):
         args = parser.parse_args(request)
     else:
         args = parser.parse_args()
+        
+    if args.enabled_gravity_embedding:
+        assert not args.use_relative_positions, \
+            "Relative positions wrapper can NOT be used while enabled gravity embedding"
     
     return args
 
@@ -102,7 +107,8 @@ def get_experiment_name(args):
         f"n-{args.number_of_pedestrians}",
         f"lr-{args.learning_rate}",
         f"gamma-{args.gamma}",
-        f"s-{f'gra_a-{args.alpha}' if args.enabled_gravity_embedding else 'ped'}",
+        f"s-{f'gra_a-{args.alpha}' if args.enabled_gravity_embedding else \
+            'rel' if args.use_relative_positions else 'ped'}",
         f"ss-{args.step_size}",
         f"vr-{constants.SWITCH_DISTANCE_TO_OTHER_PEDESTRIAN}"
     ]

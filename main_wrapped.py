@@ -76,9 +76,9 @@ def setup_wandb(args, experiment_name):
 # %%
 # if __name__ == "__main__":
 args = parse_args(True, [
-    "--exp-name", "test-stacking-stacks-1-grav",
-    "-e", "true",
-    # "-e", "false",
+    "--exp-name", "test-distance-wrapper",
+    # "-e", "true",
+    "-e", "false",
     "--intrinsic-reward-coef", "0",
     ])
 # %%
@@ -93,24 +93,17 @@ setup_wandb(args, experiment_name)
 env = setup_env(args, experiment_name)
 env, env.observation_space
 # %%
-import gymnasium as gym
-from gymnasium.wrappers import FrameStack, FlattenObservation
+# %%
+from src.env import RelativePosition
+# %%
+env = RelativePosition(env)
+# %%
+env.reset()
+# %%
+for i in range(10):
+    print(env.step(np.array([1., 1.]))[0])
 
-n_stacks = 1
-env = FlattenObservation(env)
-env = FrameStack(env, n_stacks)
-## may be we should filter some stacks here
-env = FlattenObservation(env)
-
 # %%
-env.observation_space
-# %%
-env.reset()[0]
-# %%
-env.observation_space
-# %%
-
-model = setup_model(args, env)
-model.learn(args.learn_timesteps, tb_log_name=experiment_name)
-model.save(os.path.join(params.SAVE_PATH_MODELS, f"{experiment_name}.zip"))
+A = 1 if False else 2 if False else 3
+A
 # %%
