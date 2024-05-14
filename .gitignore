@@ -1,6 +1,10 @@
 # vscode settings
 .vscode/
 
+# cloned libraries
+cloned/
+cloned/cleanrl/
+
 # python libraries
 venv/
 
