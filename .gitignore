@@ -16,6 +16,7 @@ saved_data/
 wandb/
 cartpole_dqn_seed0/
 cartpole_dqn_seed0*
+runs/
 
 # sandbox debug files
 test.py

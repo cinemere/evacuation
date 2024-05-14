@@ -112,7 +112,7 @@ def setup_env(args, experiment_name):
 # %%
 def setup_evacuation_env():
     env_args = parse_args(True, [
-        "--exp-name", "rpo-debug",
+        "--exp-name", "rpo-debug-grav",
         # "-e", "true",
         "-e", "false",
         "--intrinsic-reward-coef", "0",
@@ -128,9 +128,9 @@ def wrap_env(env, gamma):
     env = gym.wrappers.RecordEpisodeStatistics(env)
     env = gym.wrappers.ClipAction(env)
     env = gym.wrappers.NormalizeObservation(env)
-    env = gym.wrappers.TransformObservation(env, lambda obs: np.clip(obs, -10, 10)) # FIXME check this clipping
+    env = gym.wrappers.TransformObservation(env, lambda obs: np.clip(obs, -1, 1)) # FIXME check this clipping
     env = gym.wrappers.NormalizeReward(env, gamma=gamma)
-    env = gym.wrappers.TransformReward(env, lambda reward: np.clip(reward, -10, 10)) # FIXME check this clipping
+    env = gym.wrappers.TransformReward(env, lambda reward: np.clip(reward, -100, 100)) # FIXME check this clipping
     return env
 
 def make_env(env_id, idx, capture_video, run_name, gamma):
