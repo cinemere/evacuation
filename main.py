@@ -1,7 +1,7 @@
 import os
 import numpy as np
 from gymnasium.wrappers import FrameStack, FlattenObservation
-from stable_baselines3 import PPO
+from stable_baselines3 import PPO, SAC
 import wandb
 
 from src.env import EvacuationEnv, RelativePosition, constants
@@ -59,7 +59,7 @@ def setup_model(args, env):
             gamma=args.gamma
         )
     elif args.origin == 'sac':
-        model = PPO(
+        model = SAC(
             "MlpPolicy", 
             env, verbose=1, 
             tensorboard_log=params.SAVE_PATH_TBLOGS,
