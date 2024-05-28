@@ -1,6 +1,6 @@
 """An agent that is rotating in the center of the simulation area"""
 from . import BaseAgent
-from src.model.net import ActorCritic
+from src.model.tmp.net import ActorCritic
 
 import numpy as np
 from typing import *
