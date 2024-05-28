@@ -21,7 +21,7 @@ TERMINATION_AGENT_WALL_COLLISION = False    # ! is or no termination for agent's
 INTRINSIC_REWARD_COEF = 1.                  # ! coef of intrinsic reward
 IS_NEW_EXITING_REWARD = True                # ! if enable reward for new exiting
 IS_NEW_FOLLOWERS_REWARD = True              # ! if enable reward for new followers
-INIT_REWARD_EACH_STEP = 0.                  # ! each step give this reward
+INIT_REWARD_EACH_STEP = -1.                 # ! each step give this reward
 
 # Time params
 MAX_TIMESTEPS = int(2e3)                    # ! max timesteps before truncation
