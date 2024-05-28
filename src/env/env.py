@@ -1,6 +1,7 @@
 # ## %%
 import os
 import numpy as np
+# import cupy as np
 import gymnasium as gym
 from gymnasium import spaces
 import logging; log = logging.getLogger(__name__)
@@ -40,7 +41,11 @@ class UserEnum(Enum):
     @classmethod
     def all(cls):
         return list(map(lambda c: c, cls))
-
+    
+    @classmethod
+    def __len__(cls):
+        return len(cls.all())
+    
 
 class Status(UserEnum):
     VISCEK = auto()
@@ -224,6 +229,7 @@ class Agent:
 
     def __init__(self, enslaving_degree):
         self.start_position = np.zeros(2, dtype=np.float32)
+        # self.start_position = np.random.rand(2).astype(np.float32)
         self.start_direction = np.zeros(2, dtype=np.float32)
         self.enslaving_degree = enslaving_degree
         
