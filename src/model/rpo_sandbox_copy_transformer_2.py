@@ -36,13 +36,13 @@ class Args:
     """whether to capture videos of the agent performances (check out `videos` folder)"""
 
     # Algorithm specific arguments
-    env_id: str = "HalfCheetah-v4"
+    env_id: str = "rpo"
     """the id of the environment"""
-    total_timesteps: int = 8000000
+    total_timesteps: int = 80000000
     """total timesteps of the experiments"""
     learning_rate: float = 3e-4
     """the learning rate of the optimizer"""
-    num_envs: int = 1
+    num_envs: int = 3
     """the number of parallel game environments"""
     num_steps: int = 2048
     """the number of steps to run in each environment per policy rollout"""
@@ -81,7 +81,7 @@ class Args:
     num_iterations: int = 0
     """the number of iterations (computed in runtime)"""
 # %%
-from src.env import EvacuationEnv, RelativePosition, constants
+from src.env import EvacuationEnv, RelativePosition, constants, PedestriansStatuses, MatrixObs
 from src import params
 from src.utils import get_experiment_name, parse_args
 
@@ -112,16 +112,39 @@ def setup_env(args, experiment_name):
 # %%
 def setup_evacuation_env():
     env_args = parse_args(True, [
-        "--exp-name", "rpo-debug-transformer",
+        "--exp-name", "rpo-tr2-randinit-noresid-stat",
         # "-e", "true",
         "-e", "false",
+        # "--is-new-followers-reward", "false",
+        # "--init-reward-each-step", "0",
         "--intrinsic-reward-coef", "0",
+        # "--step-size", "0.1",
         ])
     experiment_name = get_experiment_name(env_args)
     env = setup_env(env_args, experiment_name)
     env = RelativePosition(env)
+    env = PedestriansStatuses(env)
+    env = MatrixObs(env)
     return env
 
+# %%
+env = setup_evacuation_env()
+obs, _ = env.reset()
+obs
+# # %%
+# pos = np.vstack((obs['agent_position'], obs['exit_position'], obs['pedestrians_positions']))
+# stat = np.hstack(([0, 1], obs['pedestrians_statuses']))
+# pos.shape, stat.shape
+# vec = np.hstack((pos, stat[:,np.newaxis]))
+# # %%
+# vec.shape
+# # %%
+# vec
+# # %%
+# obs
+# # %%
+# # %%
+# %%
 # %%
 def wrap_env(env, gamma):    
     env = gym.wrappers.FlattenObservation(env)  # deal with dm_control's Dict observation space
@@ -195,11 +218,15 @@ class DeepSets(nn.Module):
         return output
     
 #%%
-x = torch.rand(1, 24)
-ds = DeepSets(24, 64, 24)
-ds(x)
-#%%
-ds.embedding
+# x = torch.rand(1, 24)
+# x = torch.rand(1, 24)
+# x = torch.from_numpy(obs).unsqueeze(0)
+# print(x.shape)
+# # ds = DeepSets(24, 64, 24)
+# ds = DeepSets(12, 12, 12)
+# ds(x)
+# #%%
+# ds.embedding
 #%%
 # class DeepSelector(nn.Module):
 #     def __init__(self, input_dim, embedding_dim, output_dim) -> None:
@@ -213,9 +240,9 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 # %%
-class MultiHeadAttention(nn.Module):
-    def __init__(self, d_model, num_heads: int = 3):
-        super(MultiHeadAttention, self).__init__()
+class MultiHeadAttentionOLD(nn.Module):
+    def __init__(self, d_model, num_heads: int = 2):  # 3
+        super(MultiHeadAttentionOLD, self).__init__()
         assert d_model % num_heads == 0, "d_model must be divisible by num_heads"
         
         self.d_model = d_model
@@ -241,6 +268,45 @@ class MultiHeadAttention(nn.Module):
         v = self.split_heads(self.Wv(v), batch_size)
         # print(f"{q.shape=} {k.shape=} {v.shape=}")
         
+        # scores = torch.matmul(q, k.transpose(-2, -1)) / torch.sqrt(torch.tensor(self.depth, dtype=torch.float32))
+        scores = torch.matmul(q.transpose(-2, -1), k) / torch.sqrt(torch.tensor(self.depth, dtype=torch.float32))
+        if mask is not None:
+            scores = scores.masked_fill(mask == 0, -1e9)
+        
+        attention_weights = F.softmax(scores, dim=-1)
+        # output = torch.matmul(attention_weights, v)
+        output = torch.matmul(attention_weights, v.transpose(-2, -1))
+        
+        output = output.permute(0, 2, 1, 3).contiguous()
+        output = output.view(batch_size, -1, self.d_model)
+        output = self.dense(output)
+        return output
+#%%    
+class MultiHeadAttention(nn.Module):
+    def __init__(self, d_model: int = 3, num_heads: int = 2):  # 3
+        super(MultiHeadAttention, self).__init__()
+        # assert d_model % num_heads == 0, "d_model must be divisible by num_heads"
+        
+        self.d_model = d_model
+        self.num_heads = num_heads
+        self.depth = d_model
+        
+        self.Wq = nn.Linear(d_model, d_model * num_heads)
+        self.Wk = nn.Linear(d_model, d_model * num_heads)
+        self.Wv = nn.Linear(d_model, d_model * num_heads)
+        self.dense = nn.Linear(d_model * num_heads, d_model)
+        
+    def split_heads(self, x, batch_size):
+        x = x.view(batch_size, -1, self.num_heads, self.depth)
+        return x.permute(0, 3, 1, 2)
+    
+    def forward(self, q, k, v, mask=None):
+        batch_size = q.size(0)
+        
+        q = self.split_heads(self.Wq(q), batch_size)
+        k = self.split_heads(self.Wk(k), batch_size)
+        v = self.split_heads(self.Wv(v), batch_size)
+        
         scores = torch.matmul(q, k.transpose(-2, -1)) / torch.sqrt(torch.tensor(self.depth, dtype=torch.float32))
         if mask is not None:
             scores = scores.masked_fill(mask == 0, -1e9)
@@ -249,9 +315,56 @@ class MultiHeadAttention(nn.Module):
         output = torch.matmul(attention_weights, v)
         
         output = output.permute(0, 2, 1, 3).contiguous()
-        output = output.view(batch_size, -1, self.d_model)
+        output = output.view(batch_size, -1, self.d_model * self.num_heads)
         output = self.dense(output)
         return output
+
+#%%
+#%%
+# num_heads = 5
+# depth = 3
+# x = torch.from_numpy(obs).type(torch.float32)
+# ll = nn.Linear(3, 3 * num_heads)
+# lll = nn.Linear(3 * num_heads, 3)
+# #%%
+# batch_size = 1
+# x = x.unsqueeze(0)
+# x.shape
+# #%%
+# k = ll(x)
+# q = ll(x)
+# v = ll(x)
+# #%%
+# q = q.view(1, -1, num_heads, 3)
+# k = k.view(1, -1, num_heads, 3)
+# v = v.view(1, -1, num_heads, 3)
+# #%%
+# q = q.permute(0, 3, 1, 2)
+# k = k.permute(0, 3, 2, 1)
+# v = v.permute(0, 3, 1, 2)
+# #%%
+# q.shape, k.shape, v.shape
+# #%%
+# d = torch.sqrt(torch.tensor(depth, dtype=torch.float32))
+# scores = torch.matmul(q, k) / d
+# attention_weights = F.softmax(scores, dim=-1)
+# #%%
+# attention_weights.shape, v.shape
+# #%%
+# output = torch.matmul(attention_weights, v)
+# output.shape
+# #%%
+# output = output.permute(0, 2, 1, 3).contiguous()
+# output.shape
+# #%%
+# output = output.view(batch_size, -1, 3 * num_heads)
+# output.shape
+# #%%
+# output = lll(output)
+# output.shape
+# #%%
+# output.view(batch_size, -1)
+#%%
 
 class FeedForward(nn.Module):
     def __init__(self, d_model, d_ff, dropout=0.1):
@@ -274,23 +387,47 @@ class TransformerBlock(nn.Module):
                  dropout: float = 0.1
         ) -> None:
         super(TransformerBlock, self).__init__()
-        self.attention = MultiHeadAttention(d_model, num_heads)
+        self.d_model = d_model
+        self.attention = MultiHeadAttention(6, 3) # 3, 2) #d_model, num_heads)
         self.norm1 = nn.LayerNorm(d_model)
         self.norm2 = nn.LayerNorm(d_model)
         self.ff = FeedForward(d_model, d_ff, dropout)
         self.dropout = nn.Dropout(dropout)
         
     def forward(self, x, mask=None):
+        batch_size = x.size(0)
         if x.dim() == 2:
-            x = x.unsqueeze(1)
+            # x = x.unsqueeze(1)
+            x = x.view(batch_size, -1, 6) # 3 ## here d_model from MHA
+            # print(x.shape)
         attn_output = self.attention(x, x, x, mask)
+        attn_output = attn_output.view(batch_size, 1, -1)
         # print(f"{attn_output.shape=}")
-        out1 = self.norm1(x + self.dropout(attn_output))
+        # out1 = self.norm1(x + self.dropout(attn_output))
+        out1 = self.norm1(self.dropout(attn_output))
         ff_output = self.ff(out1)
-        out2 = self.norm2(out1 + self.dropout(ff_output))
-        if out2.dim() == 3:
-            out2 = out2.squeeze(1)
+        # out2 = self.norm2(out1 + self.dropout(ff_output))
+        out2 = self.norm2(self.dropout(ff_output))
+        # if out2.dim() == 3:
+        #     out2 = out2.squeeze(1)
+        out2 = out2.view(batch_size, -1)
         return out2
+#%%
+# x = torch.rand(1, 1, 24)
+x = torch.from_numpy(obs).unsqueeze(0)
+x.shape
+#%%
+# x = torch.rand(3, 1, 72)
+x = torch.rand(3, 12, 6)
+mha = MultiHeadAttention(d_model=6, num_heads=3)
+mha(x, x, x).shape
+#%%
+# tb = TransformerBlock(36, 2, 34)
+x = torch.rand(1, 72)
+tb = TransformerBlock(72, 3, 96)
+#%%
+tb(x).shape
+#%%
 #%%
 
 def layer_init(layer, std=np.sqrt(2), bias_const=0.0):
@@ -363,10 +500,17 @@ class TransformerAgent(Agent):
         #     embedding_dim=24,
         #     output_dim=envs.observation_space.shape[-1]
         # )
-        self.transformer = TransformerBlock(
-            d_model=envs.observation_space.shape[-1],
-            num_heads=3,
-            d_ff=24,
+        self.transformer = nn.Sequential(
+        TransformerBlock(
+                d_model=envs.observation_space.shape[-1],
+                num_heads=3, #2, # 3,
+                d_ff=96, #34,  # 24,
+            ),
+        TransformerBlock(
+                d_model=envs.observation_space.shape[-1],
+                num_heads=3, #2, # 3,
+                d_ff=96, #34,  # 24,
+            ),            
         )
         
     def get_value(self, x):

@@ -81,7 +81,7 @@ class Args:
     num_iterations: int = 0
     """the number of iterations (computed in runtime)"""
 # %%
-from src.env import EvacuationEnv, RelativePosition, constants
+from src.env import EvacuationEnv, RelativePosition, constants, PedestriansStatuses
 from src import params
 from src.utils import get_experiment_name, parse_args
 
@@ -112,7 +112,7 @@ def setup_env(args, experiment_name):
 # %%
 def setup_evacuation_env():
     env_args = parse_args(True, [
-        "--exp-name", "rpo-debug-transformer",
+        "--exp-name", "rpo-debug-rpo-ds3-randinit-statuses",
         # "-e", "true",
         "-e", "false",
         "--intrinsic-reward-coef", "0",
@@ -120,6 +120,7 @@ def setup_evacuation_env():
     experiment_name = get_experiment_name(env_args)
     env = setup_env(env_args, experiment_name)
     env = RelativePosition(env)
+    env = PedestriansStatuses(env)
     return env
 
 # %%
@@ -195,8 +196,8 @@ class DeepSets(nn.Module):
         return output
     
 #%%
-x = torch.rand(1, 24)
-ds = DeepSets(24, 64, 24)
+x = torch.rand(1, 34)
+ds = DeepSets(34, 64, 34)
 ds(x)
 #%%
 ds.embedding
@@ -343,8 +344,9 @@ class DeepSetsAgent(Agent):
         super().__init__(envs, rpo_alpha)
         self.deep_sets = DeepSets(
             input_dim=envs.observation_space.shape[-1],
-            embedding_dim=24,
-            output_dim=envs.observation_space.shape[-1]
+            embedding_dim=34, #24,
+            output_dim=envs.observation_space.shape[-1],
+            n_sets=10
         )
         
     def get_value(self, x):
@@ -423,8 +425,8 @@ envs = gym.vector.SyncVectorEnv(
 assert isinstance(envs.single_action_space, gym.spaces.Box), "only continuous action space is supported"
 # %% INITIALIZE
 # agent = Agent(envs, args.rpo_alpha).to(device)
-# agent = DeepSetsAgent(envs, args.rpo_alpha).to(device)
-agent = TransformerAgent(envs, args.rpo_alpha).to(device)
+agent = DeepSetsAgent(envs, args.rpo_alpha).to(device)
+# agent = TransformerAgent(envs, args.rpo_alpha).to(device)
 optimizer = optim.Adam(agent.parameters(), lr=args.learning_rate, eps=1e-5)
 
 # ALGO Logic: Storage setup

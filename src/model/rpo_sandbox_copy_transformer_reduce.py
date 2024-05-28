@@ -18,7 +18,7 @@ from torch.utils.tensorboard import SummaryWriter
 
 @dataclass
 class Args:
-    exp_name: str = "rpo-debug-0"##os.path.basename(__file__)[: -len(".py")]
+    exp_name: str = "rpo-tr3-lr3e5"##os.path.basename(__file__)[: -len(".py")]
     """the name of this experiment"""
     seed: int = 1
     """seed of the experiment"""
@@ -40,7 +40,7 @@ class Args:
     """the id of the environment"""
     total_timesteps: int = 8000000
     """total timesteps of the experiments"""
-    learning_rate: float = 3e-4
+    learning_rate: float = 3e-5
     """the learning rate of the optimizer"""
     num_envs: int = 1
     """the number of parallel game environments"""
@@ -81,7 +81,7 @@ class Args:
     num_iterations: int = 0
     """the number of iterations (computed in runtime)"""
 # %%
-from src.env import EvacuationEnv, RelativePosition, constants
+from src.env import EvacuationEnv, RelativePosition, constants, PedestriansStatuses
 from src import params
 from src.utils import get_experiment_name, parse_args
 
@@ -112,7 +112,8 @@ def setup_env(args, experiment_name):
 # %%
 def setup_evacuation_env():
     env_args = parse_args(True, [
-        "--exp-name", "rpo-debug-transformer",
+        "--exp-name", "rpo-debug-tr3-randinit-noresidual-reduced-stat-lr3e5",
+        # "--init-reward-each-step", "-1." set in constants
         # "-e", "true",
         "-e", "false",
         "--intrinsic-reward-coef", "0",
@@ -120,6 +121,7 @@ def setup_evacuation_env():
     experiment_name = get_experiment_name(env_args)
     env = setup_env(env_args, experiment_name)
     env = RelativePosition(env)
+    env = PedestriansStatuses(env)
     return env
 
 # %%
@@ -233,6 +235,25 @@ class MultiHeadAttention(nn.Module):
         return x.permute(0, 2, 1, 3)
         # return x.permute(0, 1, 2)
     
+    # def forward(self, q, k, v, mask=None):
+    #     batch_size = q.size(0)
+        
+    #     q = self.split_heads(self.Wq(q), batch_size)
+    #     k = self.split_heads(self.Wk(k), batch_size)
+    #     v = self.split_heads(self.Wv(v), batch_size)
+    #     # print(f"{q.shape=} {k.shape=} {v.shape=}")
+        
+    #     scores = torch.matmul(q, k.transpose(-2, -1)) / torch.sqrt(torch.tensor(self.depth, dtype=torch.float32))
+    #     if mask is not None:
+    #         scores = scores.masked_fill(mask == 0, -1e9)
+        
+    #     attention_weights = F.softmax(scores, dim=-1)
+    #     output = torch.matmul(attention_weights, v)
+        
+    #     output = output.permute(0, 2, 1, 3).contiguous()
+    #     output = output.view(batch_size, -1, self.d_model)
+    #     output = self.dense(output)
+    #     return output
     def forward(self, q, k, v, mask=None):
         batch_size = q.size(0)
         
@@ -241,24 +262,28 @@ class MultiHeadAttention(nn.Module):
         v = self.split_heads(self.Wv(v), batch_size)
         # print(f"{q.shape=} {k.shape=} {v.shape=}")
         
-        scores = torch.matmul(q, k.transpose(-2, -1)) / torch.sqrt(torch.tensor(self.depth, dtype=torch.float32))
+        # scores = torch.matmul(q, k.transpose(-2, -1)) / torch.sqrt(torch.tensor(self.depth, dtype=torch.float32))
+        scores = torch.matmul(q.transpose(-2, -1), k) / torch.sqrt(torch.tensor(self.depth, dtype=torch.float32))
         if mask is not None:
             scores = scores.masked_fill(mask == 0, -1e9)
         
         attention_weights = F.softmax(scores, dim=-1)
-        output = torch.matmul(attention_weights, v)
+        # output = torch.matmul(attention_weights, v)
+        output = torch.matmul(attention_weights, v.transpose(-2, -1))
         
         output = output.permute(0, 2, 1, 3).contiguous()
         output = output.view(batch_size, -1, self.d_model)
         output = self.dense(output)
         return output
 
+
+
 class FeedForward(nn.Module):
-    def __init__(self, d_model, d_ff, dropout=0.1):
+    def __init__(self, d_model, d_ff, dropout=0.1, d_output=4):
         super(FeedForward, self).__init__()
         self.linear1 = nn.Linear(d_model, d_ff)
         self.dropout = nn.Dropout(dropout)
-        self.linear2 = nn.Linear(d_ff, d_model)
+        self.linear2 = nn.Linear(d_ff, d_output)
         
     def forward(self, x):
         x = self.linear1(x)
@@ -276,8 +301,9 @@ class TransformerBlock(nn.Module):
         super(TransformerBlock, self).__init__()
         self.attention = MultiHeadAttention(d_model, num_heads)
         self.norm1 = nn.LayerNorm(d_model)
-        self.norm2 = nn.LayerNorm(d_model)
-        self.ff = FeedForward(d_model, d_ff, dropout)
+        # self.norm2 = nn.LayerNorm(d_model)
+        self.norm2 = nn.LayerNorm(4)
+        self.ff = FeedForward(d_model, d_ff, dropout, d_output=4)
         self.dropout = nn.Dropout(dropout)
         
     def forward(self, x, mask=None):
@@ -285,9 +311,11 @@ class TransformerBlock(nn.Module):
             x = x.unsqueeze(1)
         attn_output = self.attention(x, x, x, mask)
         # print(f"{attn_output.shape=}")
-        out1 = self.norm1(x + self.dropout(attn_output))
+        # out1 = self.norm1(x + self.dropout(attn_output))
+        out1 = self.norm1(self.dropout(attn_output))
         ff_output = self.ff(out1)
-        out2 = self.norm2(out1 + self.dropout(ff_output))
+        # out2 = self.norm2(out1 + self.dropout(ff_output))
+        out2 = self.norm2(self.dropout(ff_output))
         if out2.dim() == 3:
             out2 = out2.squeeze(1)
         return out2
@@ -300,18 +328,20 @@ def layer_init(layer, std=np.sqrt(2), bias_const=0.0):
 
 
 class Agent(nn.Module):
-    def __init__(self, envs, rpo_alpha):
+    def __init__(self, envs, rpo_alpha, input_shape):
         super().__init__()
         self.rpo_alpha = rpo_alpha
         self.critic = nn.Sequential(
-            layer_init(nn.Linear(np.array(envs.single_observation_space.shape).prod(), 64)),
+            layer_init(nn.Linear(input_shape, 64)),
+            # layer_init(nn.Linear(np.array(envs.single_observation_space.shape).prod(), 64)),
             nn.Tanh(),
             layer_init(nn.Linear(64, 64)),
             nn.Tanh(),
             layer_init(nn.Linear(64, 1), std=1.0),
         )
         self.actor_mean = nn.Sequential(
-            layer_init(nn.Linear(np.array(envs.single_observation_space.shape).prod(), 64)),
+            layer_init(nn.Linear(input_shape, 64)),
+            # layer_init(nn.Linear(np.array(envs.single_observation_space.shape).prod(), 64)),
             nn.Tanh(),
             layer_init(nn.Linear(64, 64)),
             nn.Tanh(),
@@ -340,10 +370,10 @@ class Agent(nn.Module):
 # %%
 class DeepSetsAgent(Agent):
     def __init__(self, envs, rpo_alpha):
-        super().__init__(envs, rpo_alpha)
+        super().__init__(envs, rpo_alpha, 34)
         self.deep_sets = DeepSets(
             input_dim=envs.observation_space.shape[-1],
-            embedding_dim=24,
+            embedding_dim=34,
             output_dim=envs.observation_space.shape[-1]
         )
         
@@ -357,7 +387,7 @@ class DeepSetsAgent(Agent):
 # %%
 class TransformerAgent(Agent):
     def __init__(self, envs, rpo_alpha):
-        super().__init__(envs, rpo_alpha)
+        super().__init__(envs, rpo_alpha, input_shape=4)
         # self.deep_sets = DeepSets(
         #     input_dim=envs.observation_space.shape[-1],
         #     embedding_dim=24,
@@ -365,8 +395,8 @@ class TransformerAgent(Agent):
         # )
         self.transformer = TransformerBlock(
             d_model=envs.observation_space.shape[-1],
-            num_heads=3,
-            d_ff=24,
+            num_heads=2,  # 3
+            d_ff=34,  # 24
         )
         
     def get_value(self, x):
@@ -376,6 +406,7 @@ class TransformerAgent(Agent):
     def get_action_and_value(self, x, action=None):
         x = self.transformer(x)
         return super().get_action_and_value(x, action)
+# %%
 
 # %% SETUP ARGS
 
