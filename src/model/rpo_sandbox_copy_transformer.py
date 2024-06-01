@@ -18,7 +18,7 @@ from torch.utils.tensorboard import SummaryWriter
 
 @dataclass
 class Args:
-    exp_name: str = "rpo-tr3-lr3e5"##os.path.basename(__file__)[: -len(".py")]
+    exp_name: str = "rpo-tr3-initagent0"##os.path.basename(__file__)[: -len(".py")]
     """the name of this experiment"""
     seed: int = 1
     """seed of the experiment"""
@@ -40,7 +40,7 @@ class Args:
     """the id of the environment"""
     total_timesteps: int = 80000000
     """total timesteps of the experiments"""
-    learning_rate: float = 3e-5
+    learning_rate: float = 3e-4
     """the learning rate of the optimizer"""
     num_envs: int = 3
     """the number of parallel game environments"""
@@ -112,7 +112,7 @@ def setup_env(args, experiment_name):
 # %%
 def setup_evacuation_env():
     env_args = parse_args(True, [
-        "--exp-name", "rpo-tr2-randinit-noresid-stat-lr3e5",
+        "--exp-name", "rpo-tr4-initagent0-noresid-stat",
         # "-e", "true",
         "-e", "false",
         # "--is-new-followers-reward", "false",

@@ -18,7 +18,7 @@ from torch.utils.tensorboard import SummaryWriter
 
 @dataclass
 class Args:
-    exp_name: str = "rpo-debug-baseline"##os.path.basename(__file__)[: -len(".py")]
+    exp_name: str = "rpo-debug-baseline-initagent0"##os.path.basename(__file__)[: -len(".py")]
     """the name of this experiment"""
     seed: int = 1
     """seed of the experiment"""
@@ -112,7 +112,7 @@ def setup_env(args, experiment_name):
 # %%
 def setup_evacuation_env():
     env_args = parse_args(True, [
-        "--exp-name", "rpo-baseline",
+        "--exp-name", "rpo-baseline-initagent0",
         "-e", "true",
         # "-e", "false",
         # "--is-new-followers-reward", "false",
