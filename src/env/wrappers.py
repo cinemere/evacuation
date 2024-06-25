@@ -1,9 +1,85 @@
 import numpy as np
 from gymnasium import Env, ObservationWrapper
-from gymnasium.spaces import Box
+from gymnasium.spaces import Box, Dict
 
-from . import EvacuationEnv
+from . import EvacuationEnv, constants
 from .env import Status
+
+def grad_potential_pedestrians(
+        agent_position: np.ndarray, 
+        pedestrians_positions: np.ndarray,
+        status_viscek: np.ndarray,
+        alpha: float = constants.ALPHA, 
+        eps: float = constants.EPS
+    ) -> np.ndarray:
+    R = agent_position[np.newaxis, :] - pedestrians_positions[status_viscek, :]
+    # R = agent_position[np.newaxis, :] - pedestrians_positions
+    # R = R[status_viscek]
+
+    if len(R) != 0:
+        norm = np.linalg.norm(R, axis = 1)[:, np.newaxis] + eps
+        grad = - alpha / norm ** (alpha + 2) * R
+        grad = grad.sum(axis = 0)
+    else:
+        grad = np.zeros(2)
+    return grad
+
+
+def grad_potential_exit(
+        agent_position: np.ndarray, 
+        num_followers: int, 
+        exit_position: np.ndarray, 
+        alpha: float = constants.ALPHA, 
+        eps: float = constants.EPS
+    ) -> np.ndarray:
+    R = agent_position - exit_position
+    norm = np.linalg.norm(R) + eps
+    grad = - alpha / norm ** (alpha + 2) * R
+    return grad * num_followers
+
+
+class GravityEmbedding(ObservationWrapper):
+    def __init__(self, 
+                 env: EvacuationEnv, 
+                 alpha: float = constants.ALPHA, 
+                 eps: float = None
+        ) -> None:
+        super().__init__(env)
+        
+        self.alpha = alpha
+        self.eps = self.env.area.eps if isinstance(eps, None) else eps
+        
+        self.observation_space.pop("pedestrians_positions")
+        self.observation_space.pop("exit_position")
+
+        self.observation_space['grad_potential_pedestrians'] = \
+            Box(low=-1, high=1, shape=(2, ), dtype=np.float32)
+        self.observation_space['grad_potential_exit'] = \
+            Box(low=-1, high=1, shape=(2, ), dtype=np.float32)
+        
+    def observation(self, obs: Dict):
+        pedestrians_positions = obs.pop("pedestrians_positions")
+        exit_position = obs.pop("exit_position")
+        agent_position = obs['agent_position']
+        
+        num_followers = sum(self.env.pedestrians.statuses == Status.FOLLOWER)
+        status_viscek = self.env.pedestrians.statuses == Status.VISCEK
+        
+        obs['grad_potential_pedestrians'] = grad_potential_pedestrians(
+            agent_position=agent_position,
+            pedestrians_positions=pedestrians_positions,
+            status_viscek=status_viscek,
+            alpha=self.alpha,
+            eps=self.eps,
+        )
+        obs['grad_potential_exit'] = grad_potential_exit(
+            agent_position=agent_position,
+            exit_position=exit_position,
+            num_followers=num_followers,
+            alpha=self.alpha,
+            eps=self.eps,
+        )
+        return obs
 
 class RelativePosition(ObservationWrapper):
     def __init__(self, env: EvacuationEnv):
@@ -17,7 +93,7 @@ class RelativePosition(ObservationWrapper):
             self.observation_space['exit_position'].low**2 + \
             self.observation_space['exit_position'].high**2)
 
-    def observation(self, obs):
+    def observation(self, obs: Dict) -> Dict:
         obs['pedestrians_positions'] = (
             obs['pedestrians_positions'] - obs['agent_position']
             ) / self._pedestrains_hippotenuse
@@ -39,7 +115,7 @@ class PedestriansStatuses(ObservationWrapper):
                 Box(low=0, high=1, shape=(env.pedestrians.num, ), 
                     dtype=np.float32)
     
-    def observation(self, obs):
+    def observation(self, obs: Dict) -> Dict:
         statuses = self.env.pedestrians.statuses
         statuses = list(map(lambda x: x.value, statuses))
         statuses = len(Status) - np.array(statuses)
@@ -63,7 +139,7 @@ class MatrixObs(PedestriansStatuses):
                 Box(low=-1, high=1, shape=(env.pedestrians.num + 2, 3), 
                     dtype=np.float32)
     
-    def observation(self, obs):
+    def observation(self, obs: Dict) -> Box:
         obs = super().observation(obs)
         pos = np.vstack((obs['agent_position'], 
                          obs['exit_position'], 

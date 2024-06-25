@@ -15,8 +15,7 @@ import matplotlib as mpl
 from functools import reduce
 from enum import Enum, auto
 
-from src.env import constants
-from src.params import WALK_DIAGRAM_LOGGING_FREQUENCY
+from . import constants
 
 from typing import Tuple, List, Dict
 import numpy.typing as npt
@@ -180,7 +179,6 @@ def count_new_statuses(old_statuses, new_statuses):
 
 class Pedestrians:
     num : int                                   # number of pedestrians
-    
     positions : np.ndarray                      # [num x 2], r_x and r_y
     directions : np.ndarray                     # [num x 2], v_x and v_y
     statuses : np.ndarray                       # [num], status : Status 
@@ -272,31 +270,6 @@ class Time:
         return self.now >= self.max_timesteps 
 
 
-def grad_potential_pedestrians(
-        agent: Agent, pedestrians: Pedestrians, alpha: float = constants.ALPHA
-    ) -> np.ndarray:
-    R = agent.position[np.newaxis, :] - pedestrians.positions
-    R = R[pedestrians.statuses == Status.VISCEK]
-
-    if len(R) != 0:
-        norm = np.linalg.norm(R, axis = 1)[:, np.newaxis] + constants.EPS
-        grad = - alpha / norm ** (alpha + 2) * R
-        grad = grad.sum(axis = 0)
-    else:
-        grad = np.zeros(2)
-    return grad
-
-
-def grad_potential_exit(
-        agent: Agent, pedestrians: Pedestrians, exit: Exit, alpha: float = constants.ALPHA
-    ) -> np.ndarray:
-    R = agent.position - exit.position
-    norm = np.linalg.norm(R) + constants.EPS
-    grad = - alpha / norm ** (alpha + 2) * R
-    grad *= sum(pedestrians.statuses == Status.FOLLOWER)
-    return grad
-
-
 class Area:
     def __init__(self, 
         reward: Reward,
@@ -304,12 +277,14 @@ class Area:
         height = constants.HEIGHT,
         step_size = constants.STEP_SIZE,
         noise_coef = constants.NOISE_COEF,
+        eps = constants.EPS,
         ):
         self.reward = reward
         self.width = width
         self.height = height
         self.step_size = step_size
         self.noise_coef = noise_coef
+        self.eps = eps
         self.exit = Exit()
     
     def reset(self):
@@ -429,7 +404,7 @@ class Area:
             3. Return (updated agent, termination, reward)
         """
         action = np.array(action)
-        action /= np.linalg.norm(action) + constants.EPS # np.clip(action, -1, 1, out=action)
+        action /= np.linalg.norm(action) + self.eps # np.clip(action, -1, 1, out=action)
 
         agent.direction = self.step_size * action
         
@@ -471,6 +446,7 @@ class EvacuationEnv(gym.Env):
         height=constants.HEIGHT,
         step_size=constants.STEP_SIZE,
         noise_coef=constants.NOISE_COEF,
+        eps=constants.EPS,
         
         # reward params
         is_termination_agent_wall_collision=constants.TERMINATION_AGENT_WALL_COLLISION,
@@ -485,13 +461,14 @@ class EvacuationEnv(gym.Env):
         n_timesteps=constants.N_TIMESTEPS,
         
         # gravity embedding params
-        enabled_gravity_embedding=constants.ENABLED_GRAVITY_EMBEDDING,
-        alpha=constants.ALPHA,
+        # enabled_gravity_embedding=constants.ENABLED_GRAVITY_EMBEDDING,
+        # alpha=constants.ALPHA,
         
         # logging params
         verbose=False,
         render_mode=None,
-        draw=False
+        draw=False,
+        giff_freq=constants.WALK_DIAGRAM_LOGGING_FREQUENCY,
         
         ) -> None:
         super(EvacuationEnv, self).__init__()
@@ -506,9 +483,8 @@ class EvacuationEnv(gym.Env):
             init_reward_each_step=init_reward_each_step)        
         
         self.area = Area(
-            reward=reward, 
-            width=width, height=height, 
-            step_size=step_size, noise_coef=noise_coef)
+            reward=reward, width=width, height=height, 
+            step_size=step_size, noise_coef=noise_coef, eps=eps)
         
         self.time = Time(
             max_timesteps=max_timesteps, 
@@ -520,9 +496,7 @@ class EvacuationEnv(gym.Env):
         self.intrinsic_reward_coef = intrinsic_reward_coef
         self.episode_reward = 0
         self.episode_intrinsic_reward = 0
-        self.episode_status_reward = 0        
-        self.enabled_gravity_embedding = enabled_gravity_embedding
-        self.alpha = alpha
+        self.episode_status_reward = 0
 
         self.action_space = spaces.Box(low=-1., high=1., shape=(2,), dtype=np.float32)
         self.observation_space = self._get_observation_space()
@@ -534,6 +508,7 @@ class EvacuationEnv(gym.Env):
 
         # drawing
         self.draw = draw
+        self.giff_freq = giff_freq
         self.save_next_episode_anim = False
         log.info(f'Env {self.experiment_name} is initialized.')        
         
@@ -542,44 +517,23 @@ class EvacuationEnv(gym.Env):
             'agent_position' : spaces.Box(low=-1, high=1, shape=(2, ), dtype=np.float32)
         }
         
-        if self.enabled_gravity_embedding:
-            observation_space['grad_potential_pedestrians'] = \
-                spaces.Box(low=-1, high=1, shape=(2, ), dtype=np.float32)
-            observation_space['grad_potential_exit'] = \
-                spaces.Box(low=-1, high=1, shape=(2, ), dtype=np.float32)
-    
-        else:
-            observation_space['pedestrians_positions'] = \
-                spaces.Box(low=-1, high=1, shape=(self.pedestrians.num, 2), dtype=np.float32)
-            observation_space['exit_position'] = \
-                spaces.Box(low=-1, high=1, shape=(2, ), dtype=np.float32)
+        observation_space['pedestrians_positions'] = \
+            spaces.Box(low=-1, high=1, shape=(self.pedestrians.num, 2), dtype=np.float32)
+        observation_space['exit_position'] = \
+            spaces.Box(low=-1, high=1, shape=(2, ), dtype=np.float32)
 
         return spaces.Dict(observation_space)
 
     def _get_observation(self):
         observation = {}
-        observation['agent_position'] = self.agent.position
-        
-        if self.enabled_gravity_embedding:
-            observation['grad_potential_pedestrians'] = grad_potential_pedestrians(
-                agent=self.agent, 
-                pedestrians=self.pedestrians, 
-                alpha=self.alpha
-            )
-            observation['grad_potential_exit'] = grad_potential_exit(
-                agent=self.agent,
-                pedestrians=self.pedestrians,
-                exit=self.area.exit,
-                alpha=self.alpha
-            )
-        else:
-            observation['pedestrians_positions'] = self.pedestrians.positions
-            observation['exit_position'] = self.area.exit.position
+        observation['agent_position'] = self.agent.position        
+        observation['pedestrians_positions'] = self.pedestrians.positions
+        observation['exit_position'] = self.area.exit.position
 
         return observation
 
     def reset(self, seed=None, options=None):
-        if self.save_next_episode_anim or (self.time.n_episodes + 1) % WALK_DIAGRAM_LOGGING_FREQUENCY == 0:
+        if self.save_next_episode_anim or (self.time.n_episodes + 1) % self.giff_freq == 0:
             self.draw = True
             self.save_next_episode_anim = True
 
@@ -801,6 +755,7 @@ class EvacuationEnv(gym.Env):
     def seed(self, seed=None):
         from gym.utils.seeding import np_random
         return np_random(seed)
+
 # # %%
 # e = EvacuationEnv(number_of_pedestrians=100)
 

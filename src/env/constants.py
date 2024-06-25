@@ -3,7 +3,7 @@
 # can be changed with argparse module in main.py
 
 NUM_PEDESTRIANS = 10                        # ! number of pedestrians
-EPS = 1e-8 
+EPS = 1e-8                                  # !
 ENSLAVING_DEGREE = 1.                       # ! leader's enslaving degree
 
 # Area params
@@ -40,3 +40,5 @@ SWITCH_DISTANCE_TO_ESCAPE = 0.01
 SAVE_PATH_GIFF = 'saved_data/giff'
 SAVE_PATH_PNG  = 'saved_data/png'
 SAVE_PATH_LOGS = 'saved_data/logs'
+
+WALK_DIAGRAM_LOGGING_FREQUENCY = 500        # ! frequency in episodes  (overall_timesteps: 2_000_000)

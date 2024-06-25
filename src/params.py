@@ -26,5 +26,3 @@ SAVE_PATH_TBLOGS = 'saved_data/tb-logs'
 SAVE_PATH_MODELS = 'saved_data/models'
 
 DEVICE = "cpu"
-
-WALK_DIAGRAM_LOGGING_FREQUENCY = 500   # frequency in episodes  (overall_timesteps: 2_000_000)
