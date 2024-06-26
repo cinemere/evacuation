@@ -110,10 +110,12 @@ class PedestriansStatuses(ObservationWrapper):
             self.observation_space['pedestrians_statuses'] = \
                 Box(low=0, high=1, shape=(env.pedestrians.num, len(Status)), 
                     dtype=np.float32)
-        else:
+        elif self.type == 'cat':
             self.observation_space['pedestrians_statuses'] = \
                 Box(low=0, high=1, shape=(env.pedestrians.num, ), 
                     dtype=np.float32)
+        else:
+            raise ValueError(f"Invalid value of `type`='{self.type}'. Must be 'ohe' or 'cat'.")
     
     def observation(self, obs: Dict) -> Dict:
         statuses = self.env.pedestrians.statuses
@@ -123,21 +125,29 @@ class PedestriansStatuses(ObservationWrapper):
             obs['pedestrians_statuses'] = np.zeros((self.env.pedestrians.num, len(Status)))
             for index, _status in enumerate(statuses):
                 obs['pedestrians_statuses'][index][_status] = 1
-        else:
+        elif self.type == 'cat':
             obs['pedestrians_statuses'] = statuses / len(Status)
+        else:
+            raise ValueError(f"Invalid value of `type`='{self.type}'. Must be 'ohe' or 'cat'.")
         return obs
     
 class MatrixObs(PedestriansStatuses):
-    def __init__(self, env: Env, type: str = 'ohe'):
+    def __init__(self, env: Env, type: str = 'no'):
         super().__init__(env, type=type)
         if self.type == 'ohe':
             self.observation_space = \
                 Box(low=-1, high=1, shape=(env.pedestrians.num + 2, 2 + len(Status)), 
                     dtype=np.float32)
-        else:
+        elif self.type == 'cat':
             self.observation_space = \
                 Box(low=-1, high=1, shape=(env.pedestrians.num + 2, 3), 
                     dtype=np.float32)
+        elif self.type == 'no':
+            self.observation_space = \
+                Box(low=-1, high=1, shape=(env.pedestrians.num + 2, 2), 
+                    dtype=np.float32)
+        else:
+            raise ValueError(f"Invalid value of `type`='{self.type}'. Must be 'no', 'ohe' or 'cat'.")
     
     def observation(self, obs: Dict) -> Box:
         obs = super().observation(obs)
@@ -151,8 +161,12 @@ class MatrixObs(PedestriansStatuses):
                             stat_exit, 
                             obs['pedestrians_statuses']))
             vec = np.hstack((pos, stat)).astype(np.float32)
-        else:        
+        elif self.type == 'cat':        
             stat = np.hstack(([0, 1], obs['pedestrians_statuses']))
             vec = np.hstack((pos, stat[:,np.newaxis])).astype(np.float32)
+        elif self.type == 'no':
+            vec = pos
+        else:
+            raise ValueError(f"Invalid value of `type`='{self.type}'. Must be 'no', 'ohe' or 'cat'.")
         return vec
     
