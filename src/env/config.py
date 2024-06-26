@@ -42,10 +42,10 @@ class EnvConfig:
     entering the leader\'s zone of influence"""
     
     intrinsic_reward_coef: float = constants.INTRINSIC_REWARD_COEF
-    """coefficient in front of intrinsic reward')
-    is-termination-agent-wall-collision', type=str2bool, default=constants.TERMINATION_AGENT_WALL_COLLISION,
-    if True, agent\'s wall collision will terminate episode')
-    """
+    """coefficient in front of intrinsic reward"""
+    
+    is_termination_agent_wall_collision: bool = constants.TERMINATION_AGENT_WALL_COLLISION
+    """if True, agent\'s wall collision will terminate episode"""
     
     init_reward_each_step: float = constants.INIT_REWARD_EACH_STEP
     """constant reward given on each step of agent"""
@@ -60,7 +60,6 @@ class EnvConfig:
     
     n_timesteps: int = constants.N_TIMESTEPS
     """number of timesteps already done (for pretrained models)"""
-
 
     # ---- Logging params ----
 
