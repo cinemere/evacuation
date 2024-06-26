@@ -95,6 +95,9 @@ class EnvWrappersConfig:
     alpha: float = constants.ALPHA
     """alpha parameter of gravity gradient embedding"""
 
+    def __post_init__(self):
+        self.check()
+
     def check(self):
         if self.enabled_gravity_embedding:
             assert self.use_relative_positions == False, \

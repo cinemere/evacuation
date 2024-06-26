@@ -44,6 +44,10 @@ class Args:
     exp_name: str = 'test'
     """prefix of the experiment name for logging results"""
     
+    def __post_init__(self):
+        self.check()
+        self.setup_exp_name()
+    
     def setup_exp_name(self):
         self.now = datetime.now().strftime(f"%d-%b-%H-%M-%S")
         self.exp_name = f"{self.exp_name}_{self.now}"
