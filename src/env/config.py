@@ -1,7 +1,8 @@
 from dataclasses import dataclass
+from typing import Literal
 
 from . import constants
-
+from .wrappers import *
 
 @dataclass    
 class EnvConfig:
@@ -78,89 +79,81 @@ class EnvConfig:
 
 @dataclass
 class EnvWrappersConfig:
-    
-    # ---- Observation wrappers params ---
+    """Observation wrappers params"""
     
     num_obs_stacks: int = constants.NUM_OBS_STACKS
     """number of times to stack observation"""
 
-    relative_positions: bool = constants.USE_RELATIVE_POSITIONS
-    """add relative positions wrapper (can be use only WITHOUT gravity embedding)"""
+    positions: Literal['abs', 'rel', 'grav'] = 'abs'
+    """positions: 
+        - 'abs': absolute coordinates
+        - 'rel': relative coordinates
+        - 'grav': gradient gravity potential encoding (GravityEncoding)
+    """
     
-    add_statuses_ohe: bool = False
-    """add pedestrians statuses to obeservation as one-hot-encoded columns"""
+    statuses: Literal['no', 'ohe', 'cat'] = 'no'
+    """add pedestrians statuses to obeservation as one-hot-encoded columns
+    NOTE: this value has no effect when `positions`='grad' is selected.
+    """
     
-    add_statuses_cat: bool = False
-    """add pedestrians statuses to obeservation as categorical float column"""
-
-    matrix_observation: bool = False
+    type: Literal['Dict', 'Box'] = 'Dict'
     """concatenate Dict-type observation to a Box-type observation
     (with added statuses to the observation)"""
 
-    # ---- GravityEmbedding params ----
+    # ---- GravityEncoding params ----
     
-    gravity_embedding: bool = constants.ENABLED_GRAVITY_EMBEDDING
-    """if True use gravity embedding"""
-
     alpha: float = constants.ALPHA
     """alpha parameter of GravityEncoding"""
 
     # ---- post-init setup ----
     
     def __post_init__(self):
-        self.check()
-
-    def check(self):
-        if self.gravity_embedding:
-            assert self.relative_positions == False, \
-                "Relative positions wrapper can NOT be used while enabled gravity embedding"
-                
-@dataclass
-class ObsTypeWrappers:
-                    
-    # 0. pos-grav  (gravity_embedding)
-
-    # 1. pos-abs_dict (-)
-    # 2. pos-rel_dict (relative_positions)
-
-    # 3. pos-rel_stat-ohe_dict (relative_positions, add_statuses_ohe)
-    # 4. pos-rel_stat-cat_dict (relative_positions, add_statuses_cat)
+        ...
+        
+    def wrap_env(self, env):
+        """
+        Possible options and how to get them:
+        | pos:   | sta:  | type:  | how
+        | - abs  | - no  | - dict | (which wrappers)
+        | - rel  | - ohe | - box  | 
+        | - grav | - cat |        | 
+        |--------|-------|--------|-----
+        |  abs   |  no   |  dict  | -
+        |  abs   |  ohe  |  dict  | PedestriansStatuses(type='ohe')
+        |  abs   |  cat  |  dict  | PedestriansStatuses(type='cat')
+        # |  abs   |  no   |  box   | MatrixObs(type='no')
+        # |  abs   |  ohe  |  box   | MatrixObs(type='ohe')
+        # |  abs   |  cat  |  box   | MatrixObs(type='cat')
+        |  rel   |  no   |  dict  | RelativePosition()
+        |  rel   |  ohe  |  dict  | RelativePosition() + PedestriansStatuses(type='ohe')
+        |  rel   |  cat  |  dict  | RelativePosition() + PedestriansStatuses(type='cat')
+        # |  rel   |  no   |  box   | RelativePosition() + MatrixObs(type='no')
+        # |  rel   |  ohe  |  box   | RelativePosition() + MatrixObs(type='ohe')
+        # |  rel   |  cat  |  box   | RelativePosition() + MatrixObs(type='cat')
+        # |  grav  |  -    |  dict  | GravityEmbedding(alpha)
+        # |  grav  |  -    |  box  | TODO
+        
+        NOTE #1: `grav` position option utilizes information about state but 
+        in its own way, so you don't need to add PedestriansStatuses() wrapper. 
+        
+        NOTE #2: to use Box version of `grav` position it is recommended to 
+        just use `Flatten` observation wrapper from gymnasium.
+        """
+        if self.positions == 'grav':
+            if self.type == 'Dict':
+                return GravityEncoding(env, alpha=self.alpha)
+            elif self.type == 'Box':
+                return NotImplementedError
+            else:
+                return ValueError
+        
+        if self.positions == 'rel':
+            env = RelativePosition(env)
+        
+        if self.type == 'box':
+            return MatrixObs(env, type=self.statuses)
     
-    # 5. pos-abs_stat-ohe_dict (add_statuses_ohe)
-    # 6. pos-abs_stat-cat_dict (add_statuses_cat)
-
-    # 7. pos-abs_stat-ohe_box -> (ohe stat) -> matrix_obs (matrix_observation) 
-    # 8. pos-abs_stat-cat_box -> (cat stat) -> matrix_obs (matrix_observation) 
-
-    # 7. pos-rel_stat-ohe_box -> (ohe stat) -> matrix_obs (relative_positions, matrix_observation)     
-    # 7. pos-rel_stat-cat_box -> (cat stat) -> matrix_obs (relative_positions, matrix_observation)    
-    """
-    Possible options and how to get them:
-    | pos:   | stat  | type   | how
-    | - abs  | - no  | - dict | (which wrappers)
-    | - rel  | - ohe | - box  | 
-    | - grav | - cat |        | 
-    |--------|-------|--------|-----
-    |  abs   |  no   |  dict  | -
-    |  abs   |  ohe  |  dict  | PedestriansStatuses(type='ohe')
-    |  abs   |  cat  |  dict  | PedestriansStatuses(type='cat')
-    |  abs   |  no   |  box   | MatrixObs(type='no')
-    |  abs   |  ohe  |  box   | MatrixObs(type='ohe')
-    |  abs   |  cat  |  box   | MatrixObs(type='cat')
-    |  rel   |  no   |  dict  | RelativePosition()
-    |  rel   |  ohe  |  dict  | RelativePosition() + PedestriansStatuses(type='ohe')
-    |  rel   |  cat  |  dict  | RelativePosition() + PedestriansStatuses(type='cat')
-    |  rel   |  no   |  box   | RelativePosition() + MatrixObs(type='no')
-    |  rel   |  ohe  |  box   | RelativePosition() + MatrixObs(type='ohe')
-    |  rel   |  cat  |  box   | RelativePosition() + MatrixObs(type='cat')
-    |  grav  |  -    |  dict  | GravityEmbedding(alpha)
-    
-    NOTE #1: `grav` position option utilizes information about state but 
-    in its own way, so you don't need to add PedestriansStatuses() wrapper. 
-    
-    NOTE #2: to use Box version of `grav` position it is recommended to 
-    just use `Flatten` observation wrapper from gymnasium.
-    """
-    
-
-
+        if self.statuses != 'no':
+            env = PedestriansStatuses(env, type=self.statuses)
+        
+        return env
