@@ -38,7 +38,7 @@ def grad_potential_exit(
     return grad * num_followers
 
 
-class GravityEmbedding(ObservationWrapper):
+class GravityEncoding(ObservationWrapper):
     def __init__(self, 
                  env: EvacuationEnv, 
                  alpha: float = constants.ALPHA, 

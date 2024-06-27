@@ -103,7 +103,7 @@ class EnvWrappersConfig:
     """if True use gravity embedding"""
 
     alpha: float = constants.ALPHA
-    """alpha parameter of gravity gradient embedding"""
+    """alpha parameter of GravityEncoding"""
 
     # ---- post-init setup ----
     
