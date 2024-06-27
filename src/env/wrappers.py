@@ -47,23 +47,22 @@ class GravityEncoding(ObservationWrapper):
         super().__init__(env)
         
         self.alpha = alpha
-        self.eps = self.env.area.eps if isinstance(eps, None) else eps
+        self.eps = self.env.unwrapped.area.eps if isinstance(eps, type(None)) else eps
         
-        self.observation_space.pop("pedestrians_positions")
-        self.observation_space.pop("exit_position")
-
-        self.observation_space['grad_potential_pedestrians'] = \
-            Box(low=-1, high=1, shape=(2, ), dtype=np.float32)
-        self.observation_space['grad_potential_exit'] = \
-            Box(low=-1, high=1, shape=(2, ), dtype=np.float32)
+        self.observation_space = Dict({
+            'agent_position' : self.observation_space['agent_position'],
+            'grad_potential_pedestrians': Box(low=-1, high=1, shape=(2, ), dtype=np.float32),
+            'grad_potential_exit': Box(low=-1, high=1, shape=(2, ), dtype=np.float32),
+        })
+        self.observation_space = Dict(self.observation_space)
         
     def observation(self, obs: Dict):
         pedestrians_positions = obs.pop("pedestrians_positions")
         exit_position = obs.pop("exit_position")
         agent_position = obs['agent_position']
         
-        num_followers = sum(self.env.pedestrians.statuses == Status.FOLLOWER)
-        status_viscek = self.env.pedestrians.statuses == Status.VISCEK
+        num_followers = sum(self.env.unwrapped.pedestrians.statuses == Status.FOLLOWER)
+        status_viscek = self.env.unwrapped.pedestrians.statuses == Status.VISCEK
         
         obs['grad_potential_pedestrians'] = grad_potential_pedestrians(
             agent_position=agent_position,
@@ -108,21 +107,21 @@ class PedestriansStatuses(ObservationWrapper):
         self.type = type        
         if self.type == 'ohe':
             self.observation_space['pedestrians_statuses'] = \
-                Box(low=0, high=1, shape=(env.pedestrians.num, len(Status)), 
+                Box(low=0, high=1, shape=(env.unwrapped.pedestrians.num, len(Status)), 
                     dtype=np.float32)
         elif self.type == 'cat':
             self.observation_space['pedestrians_statuses'] = \
-                Box(low=0, high=1, shape=(env.pedestrians.num, ), 
+                Box(low=0, high=1, shape=(env.unwrapped.pedestrians.num, ), 
                     dtype=np.float32)
         else:
             raise ValueError(f"Invalid value of `type`='{self.type}'. Must be 'ohe' or 'cat'.")
     
     def observation(self, obs: Dict) -> Dict:
-        statuses = self.env.pedestrians.statuses
+        statuses = self.env.unwrapped.pedestrians.statuses
         statuses = list(map(lambda x: x.value, statuses))
         statuses = len(Status) - np.array(statuses)
         if self.type == 'ohe':
-            obs['pedestrians_statuses'] = np.zeros((self.env.pedestrians.num, len(Status)))
+            obs['pedestrians_statuses'] = np.zeros((self.env.unwrapped.pedestrians.num, len(Status)))
             for index, _status in enumerate(statuses):
                 obs['pedestrians_statuses'][index][_status] = 1
         elif self.type == 'cat':
@@ -132,19 +131,19 @@ class PedestriansStatuses(ObservationWrapper):
         return obs
     
 class MatrixObs(PedestriansStatuses):
-    def __init__(self, env: Env, type: str = 'no'):
+    def __init__(self, env: EvacuationEnv, type: str = 'no'):
         super().__init__(env, type=type)
         if self.type == 'ohe':
             self.observation_space = \
-                Box(low=-1, high=1, shape=(env.pedestrians.num + 2, 2 + len(Status)), 
+                Box(low=-1, high=1, shape=(env.unwrapped.pedestrians.num + 2, 2 + len(Status)), 
                     dtype=np.float32)
         elif self.type == 'cat':
             self.observation_space = \
-                Box(low=-1, high=1, shape=(env.pedestrians.num + 2, 3), 
+                Box(low=-1, high=1, shape=(env.unwrapped.pedestrians.num + 2, 3), 
                     dtype=np.float32)
         elif self.type == 'no':
             self.observation_space = \
-                Box(low=-1, high=1, shape=(env.pedestrians.num + 2, 2), 
+                Box(low=-1, high=1, shape=(env.unwrapped.pedestrians.num + 2, 2), 
                     dtype=np.float32)
         else:
             raise ValueError(f"Invalid value of `type`='{self.type}'. Must be 'no', 'ohe' or 'cat'.")

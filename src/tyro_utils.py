@@ -9,7 +9,9 @@ from datetime import datetime
 from env import EnvConfig, EnvWrappersConfig
 
 @dataclass
-class StableBaselinesModelConfig:    
+class SBConfig:
+    """Stable Baselines Model Config"""
+        
     # origin
     algorithm: Literal['ppo', 'sac', 'a2c'] = 'ppo'
     """which model ti use"""
@@ -27,13 +29,14 @@ class StableBaselinesModelConfig:
     """device for the model"""
 
 @dataclass
-class CleanRLModelConfig:
+class CleanRLConfig:
+    """Stable Baselines Model Config"""
+    
     is_embedding: bool = False
-
+    """is embedding"""
+    
 @dataclass
 class Args:
-    model: StableBaselinesModelConfig | CleanRLModelConfig# = StableBaselinesModelConfig
-    """select the config of model"""
 
     env: EnvConfig
     """env params"""
@@ -41,15 +44,15 @@ class Args:
     wrap: EnvWrappersConfig
     """env wrappers params"""
 
-    exp_name: str = 'test'
-    """prefix of the experiment name for logging results"""
+    # model: SBConfig | CleanRLConfig = SBConfig
+    # """select the config of model"""
     
     def __post_init__(self):
         self.setup_exp_name()
     
     def setup_exp_name(self):
         self.now = datetime.now().strftime(f"%d-%b-%H-%M-%S")
-        self.exp_name = f"{self.exp_name}_{self.now}"
+        self.env.experiment_name = f"{self.env.experiment_name}_{self.now}"
             
     def print_args(self):
         print("The following arguments will be used in the experiment:")
@@ -58,21 +61,28 @@ class Args:
     def save_args(self):
         save_config_dir = 'saved_data/configs/'
         os.makedirs(save_config_dir, exist_ok=True)
-        with open(os.path.join(save_config_dir, f"config_{self.exp_name}.yaml"), "w") as f:
+        with open(os.path.join(save_config_dir, f"config_{self.env.experiment_name}.yaml"), "w") as f:
             f.write(yaml.dump(asdict(self)))
                
-def setup_env(exp_name: str, env_config: EnvConfig):
+def setup_env(env_config: EnvConfig, wrap_config: EnvWrappersConfig):
     
     from env import EvacuationEnv
-    env = EvacuationEnv(exp_name, **vars(env_config))
+    env = EvacuationEnv(**vars(env_config))
+    env = wrap_config.wrap_env(env)
     return env        
     
 if __name__ == "__main__":
+    # config = tyro.cli(setup_env)
     config = tyro.cli(Args)
-    config.check()
     config.print_args()
     config.save_args()
-    env = setup_env(exp_name=config.exp_name, 
-                    env_config=config.env)
+    env = setup_env(env_config=config.env,
+                    wrap_config=config.wrap)
     env.reset()
-    print(f"{env.pedestrians.num=}")
+    print(env)
+    env.step(env.action_space.sample())
+    env.step(env.action_space.sample())
+    env.step(env.action_space.sample())
+    env.step(env.action_space.sample())
+    env.reset()
+    print(f"{env.unwrapped.pedestrians.num=}")

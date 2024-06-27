@@ -22,7 +22,6 @@ import numpy.typing as npt
 
 import wandb
 
-
 def setup_logging(verbose: bool, experiment_name: str) -> None:
     logs_folder = constants.SAVE_PATH_LOGS
     if not os.path.exists(logs_folder): os.makedirs(logs_folder)
@@ -469,6 +468,7 @@ class EvacuationEnv(gym.Env):
         render_mode=None,
         draw=False,
         giff_freq=constants.WALK_DIAGRAM_LOGGING_FREQUENCY,
+        wandb_enabled=True,
         
         ) -> None:
         super(EvacuationEnv, self).__init__()
@@ -505,6 +505,7 @@ class EvacuationEnv(gym.Env):
         self.render_mode = render_mode
         self.experiment_name = experiment_name
         setup_logging(verbose, experiment_name)
+        self.wandb_enabled = wandb_enabled
 
         # drawing
         self.draw = draw
@@ -550,7 +551,7 @@ class EvacuationEnv(gym.Env):
                 "overall_timesteps" : self.time.overall_timesteps
             }
             log.info('\t'.join([f'{key}={value}' for key, value in logging_dict.items()]))
-            wandb.log(logging_dict)
+            if self.wandb_enabled: wandb.log(logging_dict)
         
         self.episode_reward = 0
         self.episode_intrinsic_reward = 0

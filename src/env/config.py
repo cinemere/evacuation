@@ -6,6 +6,9 @@ from .wrappers import *
 
 @dataclass    
 class EnvConfig:
+    
+    experiment_name: str = 'test'
+    """prefix of the experiment name for logging results"""
 
     # ---- Geometry of the environment ----
     
@@ -64,7 +67,7 @@ class EnvConfig:
 
     # ---- Logging params ----
 
-    render_mode: str = None
+    render_mode: str | None = None
     """render mode (has no effect)"""
     
     draw: bool = False
@@ -76,11 +79,16 @@ class EnvConfig:
     giff_freq: int = 500
     """frequency of logging the giff diagram"""
 
+    wandb_enabled: bool = True
+    """enable wandb logging (if True wandb.init() should be called before 
+    initializing the environment)"""
+    
 
 @dataclass
 class EnvWrappersConfig:
     """Observation wrappers params"""
     
+    # TODO, add to wrap_env
     num_obs_stacks: int = constants.NUM_OBS_STACKS
     """number of times to stack observation"""
 
@@ -92,7 +100,7 @@ class EnvWrappersConfig:
     """
     
     statuses: Literal['no', 'ohe', 'cat'] = 'no'
-    """add pedestrians statuses to obeservation as one-hot-encoded columns
+    """add pedestrians statuses to obeservation as one-hot-encoded columns.
     NOTE: this value has no effect when `positions`='grad' is selected.
     """
     
@@ -121,17 +129,17 @@ class EnvWrappersConfig:
         |  abs   |  no   |  dict  | -
         |  abs   |  ohe  |  dict  | PedestriansStatuses(type='ohe')
         |  abs   |  cat  |  dict  | PedestriansStatuses(type='cat')
-        # |  abs   |  no   |  box   | MatrixObs(type='no')
-        # |  abs   |  ohe  |  box   | MatrixObs(type='ohe')
-        # |  abs   |  cat  |  box   | MatrixObs(type='cat')
+        |  abs   |  no   |  box   | MatrixObs(type='no')
+        |  abs   |  ohe  |  box   | MatrixObs(type='ohe')
+        |  abs   |  cat  |  box   | MatrixObs(type='cat')
         |  rel   |  no   |  dict  | RelativePosition()
         |  rel   |  ohe  |  dict  | RelativePosition() + PedestriansStatuses(type='ohe')
         |  rel   |  cat  |  dict  | RelativePosition() + PedestriansStatuses(type='cat')
-        # |  rel   |  no   |  box   | RelativePosition() + MatrixObs(type='no')
-        # |  rel   |  ohe  |  box   | RelativePosition() + MatrixObs(type='ohe')
-        # |  rel   |  cat  |  box   | RelativePosition() + MatrixObs(type='cat')
-        # |  grav  |  -    |  dict  | GravityEmbedding(alpha)
-        # |  grav  |  -    |  box  | TODO
+        |  rel   |  no   |  box   | RelativePosition() + MatrixObs(type='no')
+        |  rel   |  ohe  |  box   | RelativePosition() + MatrixObs(type='ohe')
+        |  rel   |  cat  |  box   | RelativePosition() + MatrixObs(type='cat')
+        |  grav  |  -    |  dict  | GravityEmbedding(alpha)
+        |  grav  |  -    |  box   | TODO
         
         NOTE #1: `grav` position option utilizes information about state but 
         in its own way, so you don't need to add PedestriansStatuses() wrapper. 
@@ -143,14 +151,14 @@ class EnvWrappersConfig:
             if self.type == 'Dict':
                 return GravityEncoding(env, alpha=self.alpha)
             elif self.type == 'Box':
-                return NotImplementedError
+                raise NotImplementedError
             else:
-                return ValueError
+                raise ValueError
         
         if self.positions == 'rel':
             env = RelativePosition(env)
         
-        if self.type == 'box':
+        if self.type == 'Box':
             return MatrixObs(env, type=self.statuses)
     
         if self.statuses != 'no':
