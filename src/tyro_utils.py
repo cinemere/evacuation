@@ -6,8 +6,8 @@ import tyro
 import yaml
 from datetime import datetime
 
-from env import EnvConfig, EnvWrappersConfig
-
+from env import EvacuationEnv, EnvConfig, EnvWrappersConfig
+    
 @dataclass
 class SBConfig:
     """Stable Baselines Model Config"""
@@ -65,8 +65,6 @@ class Args:
             f.write(yaml.dump(asdict(self)))
                
 def setup_env(env_config: EnvConfig, wrap_config: EnvWrappersConfig):
-    
-    from env import EvacuationEnv
     env = EvacuationEnv(**vars(env_config))
     env = wrap_config.wrap_env(env)
     return env        

@@ -1,95 +1,15 @@
 from dataclasses import dataclass
 from typing import Literal
 
-from . import constants
 from .wrappers import *
-
-@dataclass    
-class EnvConfig:
-    
-    experiment_name: str = 'test'
-    """prefix of the experiment name for logging results"""
-
-    # ---- Geometry of the environment ----
-    
-    number_of_pedestrians: int = constants.NUM_PEDESTRIANS
-    """number of pedestrians in the simulation"""
-
-    width:float = constants.WIDTH
-    """geometry of environment space: width"""
-    
-    height: float = constants.HEIGHT
-    """geometry of environment space: height"""
-    
-    step_size: float = constants.STEP_SIZE
-    """length of pedestrian\'s and agent\'s step"""
-    
-    noise_coef: float = constants.NOISE_COEF
-    """noise coefficient of randomization in viscek model"""
-    
-    eps: float = constants.EPS
-    """eps"""
-
-    # ---- Leader params ----
-    
-    enslaving_degree: float = constants.ENSLAVING_DEGREE
-    """enslaving degree of leader in generalized viscek model"""
-
-    # ---- Reward params ----
-    
-    is_new_exiting_reward: bool = constants.IS_NEW_EXITING_REWARD
-    """if True, positive reward will be given for each pedestrian,
-    entering the exiting zone"""
-    
-    is_new_followers_reward: bool = constants.IS_NEW_FOLLOWERS_REWARD
-    """if True, positive reward will be given for each pedestrian,
-    entering the leader\'s zone of influence"""
-    
-    intrinsic_reward_coef: float = constants.INTRINSIC_REWARD_COEF
-    """coefficient in front of intrinsic reward"""
-    
-    is_termination_agent_wall_collision: bool = constants.TERMINATION_AGENT_WALL_COLLISION
-    """if True, agent\'s wall collision will terminate episode"""
-    
-    init_reward_each_step: float = constants.INIT_REWARD_EACH_STEP
-    """constant reward given on each step of agent"""
-
-    # ---- Timing in the environment ----
-    
-    max_timesteps: int = constants.MAX_TIMESTEPS
-    """max timesteps before truncation"""
-    
-    n_episodes: int = constants.N_EPISODES
-    """number of episodes already done (for pretrained models)"""
-    
-    n_timesteps: int = constants.N_TIMESTEPS
-    """number of timesteps already done (for pretrained models)"""
-
-    # ---- Logging params ----
-
-    render_mode: str | None = None
-    """render mode (has no effect)"""
-    
-    draw: bool = False
-    """enable saving of animation at each step"""    
-
-    verbose: bool = False
-    """enable debug mode of logging"""
-
-    giff_freq: int = 500
-    """frequency of logging the giff diagram"""
-
-    wandb_enabled: bool = True
-    """enable wandb logging (if True wandb.init() should be called before 
-    initializing the environment)"""
+from .gravity_encoding import *
     
 
 @dataclass
 class EnvWrappersConfig:
     """Observation wrappers params"""
     
-    # TODO, add to wrap_env
-    num_obs_stacks: int = constants.NUM_OBS_STACKS
+    num_obs_stacks: int = 1
     """number of times to stack observation"""
 
     positions: Literal['abs', 'rel', 'grav'] = 'abs'
@@ -110,13 +30,18 @@ class EnvWrappersConfig:
 
     # ---- GravityEncoding params ----
     
-    alpha: float = constants.ALPHA
-    """alpha parameter of GravityEncoding"""
+    alpha: float = 3
+    """alpha parameter of GravityEncoding. The value of alpha 
+    determines the strength and shape of the potential function. 
+    Higher value results in a stronger repulsion between the agent 
+    and the pedestrians, a lower value results in a weaker repulsion.
+    Typical expected values vary from 1 to 5."""
 
     # ---- post-init setup ----
     
     def __post_init__(self):
-        ...
+        # TODO add stacking wrappers
+        assert self.num_obs_stacks == 1, NotImplementedError
         
     def wrap_env(self, env):
         """
@@ -147,6 +72,7 @@ class EnvWrappersConfig:
         NOTE #2: to use Box version of `grav` position it is recommended to 
         just use `Flatten` observation wrapper from gymnasium.
         """
+        
         if self.positions == 'grav':
             if self.type == 'Dict':
                 return GravityEncoding(env, alpha=self.alpha)

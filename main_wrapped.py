@@ -63,7 +63,7 @@ def setup_wandb(args, experiment_name):
     # config_env = {key : value for key, value in constants.__dict__.items() if key[0] != '_'}
     # config_model = {key : value for key, value in params.__dict__.items() if key[0] != '_'}
     # save_config = dict(config_args, **config_env, **config_model)
-    from src.env.env import SwitchDistances as sd
+    from src.env.env.env import SwitchDistances as sd
     config_switch_distances = {k : vars(sd)[k] for k in sd.__annotations__.keys()}
     save_config = dict(config_args, **config_switch_distances)
 
