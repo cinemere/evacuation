@@ -4,6 +4,7 @@ from typing import Literal
 from params import *
 import tyro
 import yaml
+import wandb
 from datetime import datetime
 
 from env import EvacuationEnv, EnvConfig, EnvWrappersConfig
@@ -44,16 +45,27 @@ class Args:
     wrap: EnvWrappersConfig
     """env wrappers params"""
     
-    # model: SBConfig | CleanRLConfig = SBConfig
-    # """select the config of model"""
-    
+    model: SBConfig | CleanRLConfig = SBConfig
+    """select the config of model"""
+        
     def __post_init__(self):
         self.setup_exp_name()
+        self.setup_wandb_logging()
     
     def setup_exp_name(self):
         self.now = datetime.now().strftime(f"%d-%b-%H-%M-%S")
         self.env.experiment_name = f"{self.env.experiment_name}_{self.now}"
             
+    def setup_wandb_logging(self):
+        if self.env.wandb_enabled:
+            wandb.init(
+                project="evacuation",
+                name=self.env.experiment_name,
+                notes=self.env.experiment_name,
+                config=self,
+                dir='saved_data/wandb'
+        )
+
     def print_args(self):
         print("The following arguments will be used in the experiment:")
         print(yaml.dump(asdict(self)))
@@ -76,12 +88,14 @@ class Args:
             EnvConfig(**content['env']), 
             EnvWrappersConfig(**content['wrap']))
         return config
+    
                
 def setup_env(env_config: EnvConfig, wrap_config: EnvWrappersConfig):
-    env = EvacuationEnv(**vars(env_config))
+    env = EvacuationEnv(env_config)
     env = wrap_config.wrap_env(env)
     return env        
 
+WANDB_DIR = os.getenv("WANDB_DIR", "saved_data/wandb")
 CONFIG = os.getenv("CONFIG", "")
         
 if __name__ == "__main__":
