@@ -43,7 +43,7 @@ class Args:
     
     wrap: EnvWrappersConfig
     """env wrappers params"""
-
+    
     # model: SBConfig | CleanRLConfig = SBConfig
     # """select the config of model"""
     
@@ -63,15 +63,38 @@ class Args:
         os.makedirs(save_config_dir, exist_ok=True)
         with open(os.path.join(save_config_dir, f"config_{self.env.experiment_name}.yaml"), "w") as f:
             f.write(yaml.dump(asdict(self)))
+            
+    @classmethod
+    def create_from_yaml(cls, path: str):
+        import warnings
+        warnings.warn('All arguments will be loaded from yaml file (from $CONFIG).')
+        
+        with open(CONFIG, 'r') as cfg:
+            content = yaml.load(cfg, Loader=yaml.Loader)
+        
+        config = cls(
+            EnvConfig(**content['env']), 
+            EnvWrappersConfig(**content['wrap']))
+        return config
                
 def setup_env(env_config: EnvConfig, wrap_config: EnvWrappersConfig):
     env = EvacuationEnv(**vars(env_config))
     env = wrap_config.wrap_env(env)
     return env        
-    
+
+CONFIG = os.getenv("CONFIG", "")
+        
 if __name__ == "__main__":
-    # config = tyro.cli(setup_env)
-    config = tyro.cli(Args)
+    
+    help_text="""
+    To use yaml config set the env variable `CONFIG`:
+    
+    `CONFIG=<path-to-yaml-config> python main.py`
+    
+    """
+    
+    config = Args.create_from_yaml(CONFIG) if CONFIG else tyro.cli(Args, description=help_text)
+    
     config.print_args()
     config.save_args()
     env = setup_env(env_config=config.env,
