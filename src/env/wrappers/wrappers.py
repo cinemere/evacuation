@@ -38,6 +38,9 @@ class PedestriansStatuses(ObservationWrapper):
             self.observation_space['pedestrians_statuses'] = \
                 Box(low=0, high=1, shape=(env.unwrapped.pedestrians.num, ), 
                     dtype=np.float32)
+        elif self.type == 'no':
+            import warnings
+            warnings.warn(f"No statuses will be added to observation as `type`='{self.type}'.")
         else:
             raise ValueError(f"Invalid value of `type`='{self.type}'. Must be 'ohe' or 'cat'.")
     
@@ -51,8 +54,6 @@ class PedestriansStatuses(ObservationWrapper):
                 obs['pedestrians_statuses'][index][_status] = 1
         elif self.type == 'cat':
             obs['pedestrians_statuses'] = statuses / len(Status)
-        else:
-            raise ValueError(f"Invalid value of `type`='{self.type}'. Must be 'ohe' or 'cat'.")
         return obs
     
 class MatrixObs(PedestriansStatuses):
