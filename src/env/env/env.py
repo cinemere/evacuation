@@ -39,30 +39,30 @@ class EvacuationEnv(gym.Env):
     Evacuation Game Enviroment for Gym
     Continious Action and Observation Space.
     """
-    def __init__(self, **cfg: EnvConfig) -> None:
+    def __init__(self, cfg: EnvConfig) -> None:
         super(EvacuationEnv, self).__init__()
         
         # setup env
-        self.pedestrians = Pedestrians(num=cfg['number_of_pedestrians'])
+        self.pedestrians = Pedestrians(num=cfg.number_of_pedestrians)
         
         reward = Reward(
-            is_new_exiting_reward=cfg['is_new_exiting_reward'],
-            is_new_followers_reward=cfg['is_new_followers_reward'],
-            is_termination_agent_wall_collision=cfg['is_termination_agent_wall_collision'],
-            init_reward_each_step=cfg['init_reward_each_step'])        
+            is_new_exiting_reward=cfg.is_new_exiting_reward,
+            is_new_followers_reward=cfg.is_new_followers_reward,
+            is_termination_agent_wall_collision=cfg.is_termination_agent_wall_collision,
+            init_reward_each_step=cfg.init_reward_each_step)        
         
         self.area = Area(
-            reward=reward, width=cfg['width'], height=cfg['height'], 
-            step_size=cfg['step_size'], noise_coef=cfg['noise_coef'], eps=cfg['eps'])
+            reward=reward, width=cfg.width, height=cfg.height, 
+            step_size=cfg.step_size, noise_coef=cfg.noise_coef, eps=cfg.eps)
         
         self.time = Time(
-            max_timesteps=cfg['max_timesteps'], 
-            n_episodes=cfg['n_episodes'], n_timesteps=cfg['n_timesteps'])
+            max_timesteps=cfg.max_timesteps, 
+            n_episodes=cfg.n_episodes, n_timesteps=cfg.n_timesteps)
         
         # setup agent
-        self.agent = Agent(enslaving_degree=cfg['enslaving_degree'])
+        self.agent = Agent(enslaving_degree=cfg.enslaving_degree)
         
-        self.intrinsic_reward_coef = cfg['intrinsic_reward_coef']
+        self.intrinsic_reward_coef = cfg.intrinsic_reward_coef
         self.episode_reward = 0
         self.episode_intrinsic_reward = 0
         self.episode_status_reward = 0
@@ -71,16 +71,16 @@ class EvacuationEnv(gym.Env):
         self.observation_space = self._get_observation_space()
         
         # logging
-        self.render_mode = cfg['render_mode']
-        self.experiment_name = cfg['experiment_name']
-        setup_logging(cfg['verbose'], self.experiment_name, cfg['path_logs'])
-        self.wandb_enabled = cfg['wandb_enabled']
+        self.render_mode = cfg.render_mode
+        self.experiment_name = cfg.experiment_name
+        setup_logging(cfg.verbose, self.experiment_name, cfg.path_logs)
+        self.wandb_enabled = cfg.wandb_enabled
 
         # drawing
-        self.path_giff = cfg['path_giff']
-        self.path_png = cfg['path_png']
-        self.draw = cfg['draw']
-        self.giff_freq = cfg['giff_freq']
+        self.path_giff = cfg.path_giff
+        self.path_png = cfg.path_png
+        self.draw = cfg.draw
+        self.giff_freq = cfg.giff_freq
         self.save_next_episode_anim = False
         log.info(f'Env {self.experiment_name} is initialized.')
         
