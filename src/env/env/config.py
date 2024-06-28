@@ -1,7 +1,5 @@
 from dataclasses import dataclass
 
-from .. import constants
-
 @dataclass    
 class EnvConfig:
     

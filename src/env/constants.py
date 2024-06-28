@@ -41,4 +41,4 @@ SWITCH_DISTANCE_TO_ESCAPE = 0.01
 # SAVE_PATH_PNG  = 'saved_data/png'
 # SAVE_PATH_LOGS = 'saved_data/logs'
 
-WALK_DIAGRAM_LOGGING_FREQUENCY = 500        # ! frequency in episodes  (overall_timesteps: 2_000_000)
+# WALK_DIAGRAM_LOGGING_FREQUENCY = 500        # ! frequency in episodes  (overall_timesteps: 2_000_000)
