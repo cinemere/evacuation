@@ -1,7 +1,7 @@
 import os
 from dataclasses import dataclass, asdict
 from typing import Literal
-from params import *
+from src.params_old import *
 import tyro
 import yaml
 import wandb

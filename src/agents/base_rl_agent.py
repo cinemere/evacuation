@@ -13,16 +13,14 @@ import torch.optim as optim
 from torch.distributions import Categorical, Normal
 from collections import namedtuple
 
-device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-
-class RLAgent(BaseAgent):
+class BaseRLAgent(BaseAgent):
     """RLAgent has an ability to learn
     
     will be created in main
-    ans trained in Trainer
+    and then trained in Trainer
     """
     network: nn.Module
-    mode = str
+    mode: str
     
     def __init__(self, 
         action_space: spaces.Box,
@@ -31,8 +29,9 @@ class RLAgent(BaseAgent):
         learning_rate: float = 1e-4, 
         gamma: float = 0.99,
         load_pretrain: str = '',
+        device: str = 'cpu',
         ) -> None:
-        super(RLAgent, self).__init__(action_space)
+        super(BaseRLAgent, self).__init__(action_space)
         
         self.mode = mode
         self.network = network

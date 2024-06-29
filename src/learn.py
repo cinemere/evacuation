@@ -1,7 +1,9 @@
 from dataclasses import dataclass
 
 from .env import EvacuationEnv
-from agents import RLAgent
+from agents import BaseRLAgent
+
+device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
 @dataclass
 class TrainerRPOConfig:

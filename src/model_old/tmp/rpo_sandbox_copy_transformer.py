@@ -82,7 +82,7 @@ class Args:
     """the number of iterations (computed in runtime)"""
 # %%
 from src.env import EvacuationEnv, RelativePosition, constants, PedestriansStatuses, MatrixObs
-from src import params
+from src import params_old
 from src.utils import get_experiment_name, parse_args
 
 def setup_env(args, experiment_name):

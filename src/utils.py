@@ -3,7 +3,7 @@ import numpy as np
 import argparse
 
 from src.env import constants
-from src.params import *
+from src.params_old import *
 
 def str2bool(v):
     if isinstance(v, bool):

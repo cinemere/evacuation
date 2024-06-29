@@ -1,6 +1,6 @@
 from src.agents import RLAgent
 from src.env import EvacuationEnv
-from src.params import *
+from src.params_old import *
 
 from torch.utils.tensorboard import SummaryWriter
 import torch

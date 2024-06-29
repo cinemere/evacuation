@@ -6,7 +6,7 @@ import wandb
 
 from src.env import EvacuationEnv
 from src.env import constants
-from src import params
+from src import params_old
 from src.utils import get_experiment_name, parse_args
 
 def setup_env(args, experiment_name):
@@ -40,7 +40,7 @@ def setup_model(args, env):
         model = PPO(
             "MlpPolicy", 
             env, verbose=1, 
-            tensorboard_log=params.SAVE_PATH_TBLOGS,
+            tensorboard_log=params_old.SAVE_PATH_TBLOGS,
             device=args.device,
             learning_rate=args.learning_rate,
             gamma=args.gamma
@@ -49,7 +49,7 @@ def setup_model(args, env):
         model = SAC(
             "MlpPolicy",
             env, verbose=1,
-            tensorboard_log=params.SAVE_PATH_TBLOGS,
+            tensorboard_log=params_old.SAVE_PATH_TBLOGS,
             device=args.device,
             learning_rate=args.learning_rate,
             gamma=args.gamma
