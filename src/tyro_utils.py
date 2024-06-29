@@ -45,9 +45,9 @@ class Args:
     wrap: EnvWrappersConfig
     """env wrappers params"""
     
-    model: SBConfig | CleanRLConfig = SBConfig
-    """select the config of model"""
-        
+    # model: SBConfig | CleanRLConfig = SBConfig
+    # """select the config of model"""
+    
     def __post_init__(self):
         self.setup_exp_name()
         self.setup_wandb_logging()

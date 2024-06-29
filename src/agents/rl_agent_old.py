@@ -19,7 +19,6 @@ class RLAgent(BaseAgent):
     """RLAgent has an ability to learn
     
     will be created in main
-    ans trained in Trainer
     """
     network: nn.Module
     mode = str
@@ -27,10 +26,10 @@ class RLAgent(BaseAgent):
     def __init__(self, 
         action_space: spaces.Box,
         network: nn.Module,
-        mode: Literal['training', 'inference'] = 'training',
+        mode: str = 'training',
         learning_rate: float = 1e-4, 
         gamma: float = 0.99,
-        load_pretrain: str = '',
+        load_pretrain = ''
         ) -> None:
         super(RLAgent, self).__init__(action_space)
         

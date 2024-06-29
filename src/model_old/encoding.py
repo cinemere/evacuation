@@ -20,7 +20,7 @@ class DeepSets(nn.Module):
             nn.Linear(hidden_dim, output_dim)
         )
 
-    def forward(self, x):             # [batch, set_size, set_dim]
+    def forward(self, x: torch.Tensor):             # [batch, set_size, set_dim]
         assert x.dim() == 3, "Input shape should be: (batch_size, set_size, set_dim)"\
                              f"Instead DeepSets module received {x.shape=}"
         assert x.shape[1] > 1, "Only one element in set. No point in applying deep sets"
