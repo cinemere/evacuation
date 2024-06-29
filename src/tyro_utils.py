@@ -64,7 +64,7 @@ class Args:
                 notes=self.env.experiment_name,
                 config=self,
                 dir='saved_data/wandb'
-        )
+        )            
 
     def print_args(self):
         print("The following arguments will be used in the experiment:")

@@ -5,3 +5,4 @@ from .base_rl_agent import BaseRLAgent
 from .random_agent import RandomAgent
 from .rotating_agent import RotatingAgent
 from .baseline_wacuum_cleaner import WacuumCleaner
+from .rpo_agent import RPOAgent

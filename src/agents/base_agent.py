@@ -10,3 +10,7 @@ class BaseAgent:
 
     def act(self, obs):
         raise NotImplementedError()
+    
+    def update(self, **kwards):
+        """For learnable agents."""
+        raise NotImplementedError

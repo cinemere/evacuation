@@ -1,6 +1,5 @@
 """An agent that is rotating in the center of the simulation area"""
 from . import BaseAgent
-from src.model.tmp.net import ActorCritic
 
 import numpy as np
 from typing import *
@@ -43,70 +42,23 @@ class BaseRLAgent(BaseAgent):
             
         self.optimizer = optim.Adam(self.network.parameters(), lr=learning_rate)
             
-        self.memory_log_probs = []
-        self.memory_values = []
-        self.memory_rewards = []
+        self.memory = []
        
     def load_pretrain(self, path):
-        pass
+        raise NotImplementedError
 
-    def act(self, obs) -> np.ndarray:
-        
-        means, stds, values = self.network(obs)
-        distribution = Normal(means, stds)
-        
-        action = distribution.sample()
-        
-        log_prob = distribution.log_prob(action)
-        self.memory_log_probs.append(log_prob)
-        self.memory_values.append(values)
-        
-        return action
+    def act(self, obs: spaces.Space) -> np.ndarray:        
+        """        
+        return action in the same shape as action_space
+        """
+        raise NotImplementedError
     
-    def remeber_reward(self, reward):
-        self.memory_rewards.append(reward)
-
-    def compute_discounted_returns(self):
-        R = 0
-        size = len(self.memory_rewards)
-        returns = torch.zeros(size, dtype=torch.float32).to(device)
-
-        for i in range(size)[::-1]:
-            R = self.memory_rewards[i] + self.gamma * R
-            returns[i] = R
-
-        return returns
-    
-    def estimate_loss(self) -> torch.Tensor:
-        policy_losses = []
-        value_losses  = []
-        
-        returns = self.compute_discounted_returns()
-        
-        for i, current_return in enumerate(returns):
-            log_prob = self.memory_log_probs[i]
-            value    = self.memory_values[i]
-            
-            advantage = current_return - value
-            value_losses.append(F.smooth_l1_loss(value, current_return.unsqueeze(0)))
-            policy_losses.append(-log_prob * advantage)
-            
-        policy_losses = torch.stack(policy_losses).mean()
-        value_losses  = torch.stack(value_losses).mean()
-        loss = policy_losses + value_losses
-                
-        return loss
+    def receive_reward(self, reward):
+        raise NotImplementedError
 
     def update(self):
         loss = self.estimate_loss()        
         
         self.optimizer.zero_grad()
         loss.backward()
-        self.optimizer.step()
-        
-        self.clear_memory()
-        
-    def clear_memory(self):
-        del self.memory_log_probs[:]
-        del self.memory_values[:]
-        del self.memory_rewards[:]
+        self.optimizer.step()        
