@@ -2,6 +2,7 @@ from dataclasses import dataclass
 
 from . import BaseAgent
 from .networks.rpo_linear_agent_network import RPOLinearNetwork, RPOLinearNetworkConfig
+from .networks.rpo_transformer_agent_network import RPOTransformerEmbedding, RPOTransformerEmbeddingConfig
         
 from dataclasses import dataclass
 import gymnasium as gym
@@ -115,7 +116,7 @@ class RPOAgent:
             env_config: EnvConfig,
             env_wrappers_config: EnvWrappersConfig, 
             training_config: RPOAgentTrainingConfig,
-            network_config: RPOLinearNetworkConfig
+            network_config: RPOLinearNetworkConfig | RPOTransformerEmbeddingConfig,
         ):
                
         self.cfg = training_config
@@ -138,7 +139,11 @@ class RPOAgent:
         torch.manual_seed(self.cfg.seed)
         torch.backends.cudnn.deterministic = self.cfg.torch_deterministic
 
-        self.net = RPOLinearNetwork(self.envs, network_config, self.device)
+        if isinstance(network_config, RPOLinearNetworkConfig):
+            self.net = RPOLinearNetwork(self.envs, network_config, self.device)
+        elif isinstance(network_config, RPOTransformerEmbeddingConfig):
+            self.net = RPOTransformerEmbedding(self.envs, env_config.number_of_pedestrians,
+                                               config=network_config, device=self.device)
         self.optimizer = optim.Adam(self.net.parameters(), 
                                     lr=self.cfg.learning_rate, eps=1e-5)        
         self.writer = SummaryWriter(os.path.join(TBLOGS_DIR, env_config.experiment_name))

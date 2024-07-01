@@ -8,7 +8,7 @@ import wandb
 from datetime import datetime
 
 from env import EvacuationEnv, EnvConfig, EnvWrappersConfig, setup_env
-from agents import RPOAgent, RPOLinearNetwork, RPOLinearNetworkConfig, RPOAgentTrainingConfig
+from agents import RPOAgent, RPOLinearNetwork, RPOLinearNetworkConfig, RPOAgentTrainingConfig, RPOTransformerEmbedding, RPOTransformerEmbeddingConfig
 
 WANDB_DIR = os.getenv("WANDB_DIR", "./saved_data/")
 CONFIG = os.getenv("CONFIG", "")
@@ -44,7 +44,7 @@ class CleanRLConfig:
     agent: RPOAgentTrainingConfig
     """select the parametrs of trainig the agent"""
     
-    network: RPOLinearNetworkConfig
+    network: RPOLinearNetworkConfig | RPOTransformerEmbeddingConfig
     """select the network params"""
     
 @dataclass
