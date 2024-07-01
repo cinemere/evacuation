@@ -44,7 +44,7 @@ class EnvConfig:
     """if True, positive reward will be given for each pedestrian,
     entering the leader\'s zone of influence"""
     
-    intrinsic_reward_coef: float = True
+    intrinsic_reward_coef: float = 0.
     """coefficient in front of intrinsic reward"""
     
     is_termination_agent_wall_collision: bool = False

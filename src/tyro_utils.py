@@ -1,13 +1,18 @@
 import os
 from dataclasses import dataclass, asdict
 from typing import Literal
-from src.params_old import *
+# from src.params_old import *
 import tyro
 import yaml
 import wandb
 from datetime import datetime
 
-from env import EvacuationEnv, EnvConfig, EnvWrappersConfig
+from env import EvacuationEnv, EnvConfig, EnvWrappersConfig, setup_env
+from agents import RPOAgent, RPOAgentNetwork, RPOAgentNetworkConfig, RPOAgentTrainingConfig
+
+WANDB_DIR = os.getenv("WANDB_DIR", "saved_data/wandb")
+CONFIG = os.getenv("CONFIG", "")
+DEVICE = os.getenv("DEVICE", "cpu")
     
 @dataclass
 class SBConfig:
@@ -33,8 +38,14 @@ class SBConfig:
 class CleanRLConfig:
     """Stable Baselines Model Config"""
     
-    is_embedding: bool = False
-    """is embedding"""
+    # is_embedding: bool = False
+    # """is embedding"""
+    
+    agent: RPOAgentTrainingConfig
+    """select the parametrs of trainig the agent"""
+    
+    network: RPOAgentNetworkConfig
+    """select the network params"""
     
 @dataclass
 class Args:
@@ -45,8 +56,8 @@ class Args:
     wrap: EnvWrappersConfig
     """env wrappers params"""
     
-    # model: SBConfig | CleanRLConfig = SBConfig
-    # """select the config of model"""
+    model: SBConfig | CleanRLConfig = CleanRLConfig
+    """select the config of model"""
     
     def __post_init__(self):
         self.setup_exp_name()
@@ -89,15 +100,7 @@ class Args:
             EnvWrappersConfig(**content['wrap']))
         return config
     
-               
-def setup_env(env_config: EnvConfig, wrap_config: EnvWrappersConfig):
-    env = EvacuationEnv(env_config)
-    env = wrap_config.wrap_env(env)
-    return env        
-
-WANDB_DIR = os.getenv("WANDB_DIR", "saved_data/wandb")
-CONFIG = os.getenv("CONFIG", "")
-        
+                       
 if __name__ == "__main__":
     
     help_text="""
@@ -106,18 +109,28 @@ if __name__ == "__main__":
     `CONFIG=<path-to-yaml-config> python main.py`
     
     """
-    
+    # config = tyro.cli(Args, description=help_text, args=["model:clean-rl-config", "--model.agent.total-timesteps", "100000"])
     config = Args.create_from_yaml(CONFIG) if CONFIG else tyro.cli(Args, description=help_text)
     
     config.print_args()
     config.save_args()
-    env = setup_env(env_config=config.env,
-                    wrap_config=config.wrap)
-    env.reset()
-    print(env)
-    env.step(env.action_space.sample())
-    env.step(env.action_space.sample())
-    env.step(env.action_space.sample())
-    env.step(env.action_space.sample())
-    env.reset()
-    print(f"{env.unwrapped.pedestrians.num=}")
+    
+    # env = setup_env(env_config=config.env,
+    #                 wrap_config=config.wrap)
+    # env.reset()
+    # print(env)
+    # env.step(env.action_space.sample())
+    # env.step(env.action_space.sample())
+    # env.step(env.action_space.sample())
+    # env.step(env.action_space.sample())
+    # env.reset()
+    # print(f"{env.unwrapped.pedestrians.num=}")
+
+    training = RPOAgent(
+        env_config=config.env,
+        env_wrappers_config=config.wrap,
+        training_config=config.model.agent,
+        network_config=config.model.network
+    )
+    training.learn()
+    

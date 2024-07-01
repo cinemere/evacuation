@@ -10,7 +10,6 @@ import matplotlib.patches as mpatches
 import matplotlib.animation as animation
 import matplotlib as mpl
 
-from .. import constants
 from .config import EnvConfig
 from .statuses import Status
 from .distances import SwitchDistances
@@ -233,8 +232,8 @@ class EvacuationEnv(gym.Env):
         plt.title(f"{self.experiment_name}. Timesteps: {self.time.now}")
 
         plt.tight_layout()
-        if not os.path.exists(constants.SAVE_PATH_PNG): os.makedirs(constants.SAVE_PATH_PNG)
-        filename = os.path.join(constants.SAVE_PATH_PNG, f'{self.experiment_name}_{self.time.now}.png')
+        if not os.path.exists(self.path_png): os.makedirs(self.path_png)
+        filename = os.path.join(self.path_png, f'{self.experiment_name}_{self.time.now}.png')
         plt.savefig(filename)
         plt.show()
         log.info(f"Env is rendered and pnd image is saved to {filename}")
@@ -315,8 +314,8 @@ class EvacuationEnv(gym.Env):
 
         ani = animation.FuncAnimation(fig=fig, func=update, frames=self.time.now, interval=20)
         
-        if not os.path.exists(constants.SAVE_PATH_GIFF): os.makedirs(constants.SAVE_PATH_GIFF)
-        filename = os.path.join(constants.SAVE_PATH_GIFF, f'{self.experiment_name}_ep-{self.time.n_episodes}.gif')
+        if not os.path.exists(self.path_giff): os.makedirs(self.path_giff)
+        filename = os.path.join(self.path_giff, f'{self.experiment_name}_ep-{self.time.n_episodes}.gif')
         ani.save(filename=filename, writer='pillow')
         log.info(f"Env is rendered and gif animation is saved to {filename}")
 

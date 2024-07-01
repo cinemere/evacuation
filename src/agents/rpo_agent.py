@@ -9,9 +9,7 @@ import random
 import numpy as np
 import torch
 
-from env import EvacuationEnv, EnvConfig, EnvWrappersConfig
-from agents import RPOAgent
-from tyro_utils import setup_env
+from env import EvacuationEnv, EnvConfig, EnvWrappersConfig, setup_env
 
 import os
 import random
@@ -27,14 +25,18 @@ import tyro
 from torch.distributions.normal import Normal
 from torch.utils.tensorboard import SummaryWriter
 
+
+TBLOGS_DIR = os.getenv("TBLOGS_DIR", "saved_data/tb_logs")
+
+
 def wrapping(env, gamma):    
     env = gym.wrappers.FlattenObservation(env)  # deal with Dict observation space
     env = gym.wrappers.RecordEpisodeStatistics(env)
     env = gym.wrappers.ClipAction(env)
     env = gym.wrappers.NormalizeObservation(env)
-    # env = gym.wrappers.TransformObservation(env, lambda obs: np.clip(obs, -1, 1))
+    env = gym.wrappers.TransformObservation(env, lambda obs: np.clip(obs, -1, 1))
     env = gym.wrappers.NormalizeReward(env, gamma=gamma)
-    # env = gym.wrappers.TransformReward(env, lambda reward: np.clip(reward, -100, 100)) ## TODO: Check without this
+    env = gym.wrappers.TransformReward(env, lambda reward: np.clip(reward, -100, 100)) ## TODO: Check without this
     return env
 
 def make_env(env_config, env_wrappers_config, gamma):
@@ -87,7 +89,7 @@ class RPOAgentTrainingConfig(BaseAgent):
     """coefficient of the value function"""
     max_grad_norm: float = 0.5
     """the maximum norm for the gradient clipping"""
-    target_kl: float = None
+    target_kl: float | None = None
     """the target KL divergence threshold"""
 
     @property
@@ -106,7 +108,6 @@ class RPOAgentTrainingConfig(BaseAgent):
     def num_updates(self):
         return self.total_timesteps // self.batch_size
 
-TBLOGS_DIR = os.getenv("TBLOGS_DIR", "saved_data/tb_logs")
     
 class RPOAgent:
     def __init__(
@@ -129,7 +130,7 @@ class RPOAgent:
         self.device = torch.device(
             'cuda' if torch.cuda.is_available() and self.cfg.cuda else 'cpu')
 
-        self.wandb_enabled = self.envs[0].unwrapped.wandb_enabled
+        self.wandb_enabled = env_config.wandb_enabled
 
         # seeding        
         random.seed(self.cfg.seed)
@@ -137,17 +138,16 @@ class RPOAgent:
         torch.manual_seed(self.cfg.seed)
         torch.backends.cudnn.deterministic = self.cfg.torch_deterministic
 
-        self.agent_net = RPOAgentNetwork(network_config)
-        
-        self.writer = SummaryWriter(TBLOGS_DIR)
+        self.agent_net = RPOAgentNetwork(self.envs, network_config, self.device)
+        self.optimizer = optim.Adam(self.agent_net.parameters(), 
+                                    lr=self.cfg.learning_rate, eps=1e-5)        
+        self.writer = SummaryWriter(os.path.join(TBLOGS_DIR, env_config.experiment_name))
 
     def learn(self):
-        self.optimizer = optim.Adam(self.agent_net.parameters(), 
-                                    lr=self.cfg.learning_rate, eps=1e-5)
 
         # prepare a storage for one update        
         obs = torch.zeros((self.cfg.num_steps, self.cfg.num_envs) + self.obs_space.shape).to(self.device)
-        actions = torch.zeros((self.cfg.num_steps, self.cfg.num_envs) + self.obs_space.shape).to(self.device)
+        actions = torch.zeros((self.cfg.num_steps, self.cfg.num_envs) + self.action_space.shape).to(self.device)
         logprobs = torch.zeros((self.cfg.num_steps, self.cfg.num_envs)).to(self.device)
         rewards = torch.zeros((self.cfg.num_steps, self.cfg.num_envs)).to(self.device)
         dones = torch.zeros((self.cfg.num_steps, self.cfg.num_envs)).to(self.device)
@@ -227,7 +227,7 @@ class RPOAgent:
                     end = start + self.cfg.minibatch_size
                     mb_inds = b_inds[start:end]
 
-                    _, newlogprob, entropy, newvalue = self.agent.get_action_and_value(b_obs[mb_inds], b_actions[mb_inds])
+                    _, newlogprob, entropy, newvalue = self.agent_net.get_action_and_value(b_obs[mb_inds], b_actions[mb_inds])
                     logratio = newlogprob - b_logprobs[mb_inds]
                     ratio = logratio.exp()
 
@@ -266,7 +266,7 @@ class RPOAgent:
 
                     self.optimizer.zero_grad()
                     loss.backward()
-                    nn.utils.clip_grad_norm_(self.agent.parameters(), self.cfg.max_grad_norm)
+                    nn.utils.clip_grad_norm_(self.agent_net.parameters(), self.cfg.max_grad_norm)
                     self.optimizer.step()
 
                 if self.cfg.target_kl is not None:

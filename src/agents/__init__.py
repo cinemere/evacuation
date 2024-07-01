@@ -5,4 +5,6 @@ from .base_rl_agent import BaseRLAgent
 from .random_agent import RandomAgent
 from .rotating_agent import RotatingAgent
 from .baseline_wacuum_cleaner import WacuumCleaner
-from .rpo_agent import RPOAgent
+from .rpo_agent import RPOAgent, RPOAgentTrainingConfig
+
+from .networks.rpo_agent_network import RPOAgentNetwork, RPOAgentNetworkConfig

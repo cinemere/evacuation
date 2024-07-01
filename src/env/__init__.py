@@ -14,3 +14,8 @@ from .wrappers.wrappers import PedestriansStatuses, RelativePosition, MatrixObs
 #     entry_point='env.env:EvacuationEnv',
 #     # max_episode_steps=300,
 # )
+
+def setup_env(env_config: EnvConfig, wrap_config: EnvWrappersConfig):
+    env = EvacuationEnv(env_config)
+    env = wrap_config.wrap_env(env)
+    return env        

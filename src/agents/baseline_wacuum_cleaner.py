@@ -1,8 +1,8 @@
 import numpy as np
 
-from src.agents import BaseAgent
-from src.env.constants import SWITCH_DISTANCE_TO_LEADER
-from src.env import EvacuationEnv
+from . import BaseAgent
+from env.constants import SWITCH_DISTANCE_TO_LEADER
+from env import EvacuationEnv
 
 class WacuumCleaner(BaseAgent):
     def __init__(self, env : EvacuationEnv):

@@ -694,7 +694,7 @@ for update in range(1, num_updates + 1):
             if approx_kl > args.target_kl:
                 break
 
-    y_pred, y_true = b_values.cpu().numpy(), b_ returns.cpu().numpy()
+    y_pred, y_true = b_values.cpu().numpy(), b_returns.cpu().numpy()
     var_y = np.var(y_true)
     explained_var = np.nan if var_y == 0 else 1 - np.var(y_true - y_pred) / var_y
 
