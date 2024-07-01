@@ -7,4 +7,4 @@ from .rotating_agent import RotatingAgent
 from .baseline_wacuum_cleaner import WacuumCleaner
 from .rpo_agent import RPOAgent, RPOAgentTrainingConfig
 
-from .networks.rpo_agent_network import RPOAgentNetwork, RPOAgentNetworkConfig
+from .networks.rpo_linear_agent_network import RPOLinearNetwork, RPOLinearNetworkConfig

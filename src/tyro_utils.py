@@ -8,9 +8,9 @@ import wandb
 from datetime import datetime
 
 from env import EvacuationEnv, EnvConfig, EnvWrappersConfig, setup_env
-from agents import RPOAgent, RPOAgentNetwork, RPOAgentNetworkConfig, RPOAgentTrainingConfig
+from agents import RPOAgent, RPOLinearNetwork, RPOLinearNetworkConfig, RPOAgentTrainingConfig
 
-WANDB_DIR = os.getenv("WANDB_DIR", "saved_data/wandb")
+WANDB_DIR = os.getenv("WANDB_DIR", "./saved_data/")
 CONFIG = os.getenv("CONFIG", "")
 DEVICE = os.getenv("DEVICE", "cpu")
     
@@ -44,7 +44,7 @@ class CleanRLConfig:
     agent: RPOAgentTrainingConfig
     """select the parametrs of trainig the agent"""
     
-    network: RPOAgentNetworkConfig
+    network: RPOLinearNetworkConfig
     """select the network params"""
     
 @dataclass
@@ -62,6 +62,14 @@ class Args:
     def __post_init__(self):
         self.setup_exp_name()
         self.setup_wandb_logging()
+        
+        if isinstance(self.model, CleanRLConfig):
+            if self.model.agent.cuda and DEVICE == 'cpu':
+                import warnings
+                warnings.warn(f"The config value model.agent.cuda={self.model.agent.cuda}, "\
+                    f"however, the environmental variable DEVICE={DEVICE}. So cuda would not"\
+                    f"be used. To enable cuda set `DEVICE='cuda'` as env variable.")
+            self.model.agent.cuda = False if DEVICE == "cpu" else True
     
     def setup_exp_name(self):
         self.now = datetime.now().strftime(f"%d-%b-%H-%M-%S")

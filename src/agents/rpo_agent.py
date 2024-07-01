@@ -1,7 +1,7 @@
 from dataclasses import dataclass
 
 from . import BaseAgent
-from .networks.rpo_agent_network import RPOAgentNetwork, RPOAgentNetworkConfig
+from .networks.rpo_linear_agent_network import RPOLinearNetwork, RPOLinearNetworkConfig
         
 from dataclasses import dataclass
 import gymnasium as gym
@@ -115,7 +115,7 @@ class RPOAgent:
             env_config: EnvConfig,
             env_wrappers_config: EnvWrappersConfig, 
             training_config: RPOAgentTrainingConfig,
-            network_config: RPOAgentNetworkConfig
+            network_config: RPOLinearNetworkConfig
         ):
                
         self.cfg = training_config
@@ -138,8 +138,8 @@ class RPOAgent:
         torch.manual_seed(self.cfg.seed)
         torch.backends.cudnn.deterministic = self.cfg.torch_deterministic
 
-        self.agent_net = RPOAgentNetwork(self.envs, network_config, self.device)
-        self.optimizer = optim.Adam(self.agent_net.parameters(), 
+        self.net = RPOLinearNetwork(self.envs, network_config, self.device)
+        self.optimizer = optim.Adam(self.net.parameters(), 
                                     lr=self.cfg.learning_rate, eps=1e-5)        
         self.writer = SummaryWriter(os.path.join(TBLOGS_DIR, env_config.experiment_name))
 
@@ -175,7 +175,7 @@ class RPOAgent:
                 
                 # ALGO LOGIC: action logic
                 with torch.no_grad():
-                    action, logprob, _, value = self.agent_net.get_action_and_value(next_obs)
+                    action, logprob, _, value = self.net.get_action_and_value(next_obs)
                     values[step] = value.flatten()                                  # mem
                 actions[step] = action                                              # mem
                 logprobs[step] = logprob                                            # mem
@@ -195,7 +195,7 @@ class RPOAgent:
 
             # Bootstrap value if not done (estimate advantages and returns)
             with torch.no_grad():
-                next_value = self.agent_net.get_value(next_obs).reshape(1, -1)
+                next_value = self.net.get_value(next_obs).reshape(1, -1)
                 advantages = torch.zeros_like(rewards).to(self.device)
                 lastgaelam = 0
                 for t in reversed(range(self.cfg.num_steps)):
@@ -227,7 +227,7 @@ class RPOAgent:
                     end = start + self.cfg.minibatch_size
                     mb_inds = b_inds[start:end]
 
-                    _, newlogprob, entropy, newvalue = self.agent_net.get_action_and_value(b_obs[mb_inds], b_actions[mb_inds])
+                    _, newlogprob, entropy, newvalue = self.net.get_action_and_value(b_obs[mb_inds], b_actions[mb_inds])
                     logratio = newlogprob - b_logprobs[mb_inds]
                     ratio = logratio.exp()
 
@@ -266,7 +266,7 @@ class RPOAgent:
 
                     self.optimizer.zero_grad()
                     loss.backward()
-                    nn.utils.clip_grad_norm_(self.agent_net.parameters(), self.cfg.max_grad_norm)
+                    nn.utils.clip_grad_norm_(self.net.parameters(), self.cfg.max_grad_norm)
                     self.optimizer.step()
 
                 if self.cfg.target_kl is not None:

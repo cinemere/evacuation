@@ -7,7 +7,7 @@ from dataclasses import dataclass
 from .utils import layer_init
 
 @dataclass
-class RPOAgentNetworkConfig:
+class RPOLinearNetworkConfig:
 
     num_hidden: int = 64
     """number of hidden layers"""
@@ -16,8 +16,8 @@ class RPOAgentNetworkConfig:
     """the alpha parameter for RPO"""
 
 
-class RPOAgentNetwork(nn.Module):
-    def __init__(self, envs, config: RPOAgentNetworkConfig, device: torch.DeviceObjType):
+class RPOLinearNetwork(nn.Module):
+    def __init__(self, envs, config: RPOLinearNetworkConfig, device: torch.DeviceObjType):
         super().__init__()
         self.rpo_alpha = config.rpo_alpha
         self.critic = nn.Sequential(
