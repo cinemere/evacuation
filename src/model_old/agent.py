@@ -68,7 +68,7 @@ class DeepSetsAgent(AgentRPO):
     def get_action_and_value(self, x, action=None):
         x = self.deep_sets(x)
         return super().get_action_and_value(x, action)
-
+    
 
 class TransformerAgent(AgentRPO):
     def __init__(self, envs, rpo_alpha):

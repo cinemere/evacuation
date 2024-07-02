@@ -3,6 +3,7 @@ from dataclasses import dataclass
 from . import BaseAgent
 from .networks.rpo_linear_agent_network import RPOLinearNetwork, RPOLinearNetworkConfig
 from .networks.rpo_transformer_agent_network import RPOTransformerEmbedding, RPOTransformerEmbeddingConfig
+from .networks.rpo_deep_sets_agent_network import RPODeepSetsEmbedding, RPODeepSetsEmbeddingConfig
         
 from dataclasses import dataclass
 import gymnasium as gym
@@ -144,6 +145,11 @@ class RPOAgent:
         elif isinstance(network_config, RPOTransformerEmbeddingConfig):
             self.net = RPOTransformerEmbedding(self.envs, env_config.number_of_pedestrians,
                                                config=network_config, device=self.device)
+        elif isinstance(network_config, RPODeepSetsEmbeddingConfig):
+            self.net = RPODeepSetsEmbedding(self.envs, env_config.number_of_pedestrians, 
+                                            config=network_config, device=self.device)
+        else:
+            raise NotImplementedError
         self.optimizer = optim.Adam(self.net.parameters(), 
                                     lr=self.cfg.learning_rate, eps=1e-5)        
         self.writer = SummaryWriter(os.path.join(TBLOGS_DIR, env_config.experiment_name))
