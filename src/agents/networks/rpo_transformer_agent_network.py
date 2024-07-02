@@ -145,6 +145,8 @@ class RPOTransformerEmbedding(RPOLinearNetwork):
                     # d_model=envs.observation_space.shape[-1],
                     num_heads=config.num_heads,  # 3, #2, # 3,
                     d_ff=config.dim_feedforward,  # 96, #34,  # 24,
+                    dropout=config.dropout,
+                    use_resid=config.use_resid,
                 )
             )
         self.embedding = nn.Sequential(*embedding)
