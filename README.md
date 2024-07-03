@@ -35,10 +35,12 @@ pip install -r requirements.txt
 
 ### Setup environment variables
 
-**Before running experints** don't forget to:
-
+Here are the default values, which can be changed via environmental variables:
 ```bash
-export PYTHONPATH=$PWD
+TBLOGS_DIR ?= "./saved_data/tb_logs"
+WANDB_DIR ?= "./saved_data/"
+CONFIG ?= "<path-to-yaml-conifg>"  # to setup arguments from config 
+DEVICE ?= "cpu"
 ```
 
 ### Wandb cheat sheet
@@ -61,17 +63,17 @@ wandb init
 
 To run experiment from command line:
 ```bash
-python main.py --exp-name "my-first-experiment"
+python src/main.py --env.experiment-name "my-first-experiment"
 ```
 
 To use evacuation env in your code:
 
 ```python
-from src.env import EvacuationEnv
+from src.env import setup_env, EnvConfig, EnvWrappersConfig
 from src.agents import RandomAgent
 
 # Initialize environment
-env = EvacuationEnv()
+env = setup_env(EnvConfig, EnvWrappersConfig)
 
 # Initialize random agent
 random_agent = RandomAgent(env.action_space)
@@ -90,6 +92,27 @@ env.render()              # save episode trajectory in png
 
 ```
 
+To run learning of an RPO agent with transformer embedding use:
+
+```
+python3 src/main.py --env.experiment-name "my-experiment" \
+                    --wrap.positions rel \
+                    --wrap.statuses ohe \
+                    --wrap.type Box \
+                    model:clean-rl-config \
+                    model.network:rpo-transformer-embedding-config
+```
+
+To run learning of an RPO agent with gravity encoding of observations use:
+
+```
+python3 src/main.py --env.experiment-name "my-experiment" \
+                    --wrap.positions grav \
+                    model:clean-rl-config \
+                    model.network:rpo-transformer-embedding-config \
+                    model.network:rpo-linear-network-config
+```
+
 
 ## Documentation
 
@@ -97,11 +120,9 @@ env.render()              # save episode trajectory in png
 
 ### Input parameters
 
-Most valuable parametes can be set throw argparse module. However some parameters are still in files, here such parameters are outlined:
+Most valuable parametes can be set throw command line. However some parameters are in files, here such parameters are outlined:
 
-- [`src/params.py`](src/params.py) $\rightarrow$ parameters of the model (+ logging params)
-  - `WALK_DIAGRAM_LOGGING_FREQUENCY` $\rightarrow$ frequency of saving giff of episode trajectories 
-- [`src/env/constants.py`](src/env/constants.py) $\rightarrow$ default parameters of the environment
+- [`src/env/constants.py`](src/env/constants.py) $\rightarrow$ switch distances:
   - `SWITCH_DISTANCE_TO_LEADER` $\rightarrow$ radius of catch by leader
   - `SWITCH_DISTANCE_TO_OTHER_PEDESTRIAN` $\rightarrow$ radius of interactions between pedestrians
   - `SWITCH_DISTANCE_TO_EXIT` $\rightarrow$ raduis of the exit zone
@@ -109,80 +130,174 @@ Most valuable parametes can be set throw argparse module. However some parameter
 
 - arguments passed to `EvacuationEnv` ([`src/utils.py`](src/utils.py))
 
-```
-usage: main.py [-h] [--origin {ppo,a2c}] [--learn-timesteps LEARN_TIMESTEPS] [--learning-rate LEARNING_RATE] [--gamma GAMMA] [--device {cpu,cuda}] [--exp-name EXP_NAME]
-               [-v] [--draw] [-n NUMBER_OF_PEDESTRIANS] [--width WIDTH] [--height HEIGHT] [--step-size STEP_SIZE] [--noise-coef NOISE_COEF]
-               [--enslaving-degree ENSLAVING_DEGREE] [--is-new-exiting-reward IS_NEW_EXITING_REWARD] [--is-new-followers-reward IS_NEW_FOLLOWERS_REWARD]
-               [--intrinsic-reward-coef INTRINSIC_REWARD_COEF] [--is-termination-agent-wall-collision IS_TERMINATION_AGENT_WALL_COLLISION]
-               [--init-reward-each-step INIT_REWARD_EACH_STEP] [--max-timesteps MAX_TIMESTEPS] [--n-episodes N_EPISODES] [--n-timesteps N_TIMESTEPS]
-               [-e ENABLED_GRAVITY_EMBEDDING] [--alpha ALPHA]
+```bash
+usage: main.py [-h] [OPTIONS] [{model:sb-config,model:clean-rl-config,model:type}]
 
-options:
-  -h, --help            show this help message and exit
+        To use yaml config set the env variable `CONFIG`:
 
-model:
-  --origin {ppo,a2c}    which model to use (default: ppo)
-  --learn-timesteps LEARN_TIMESTEPS
-                        number of timesteps to learn the model (default: 5000000)
-  --learning-rate LEARNING_RATE
-                        learning rate for stable baselines ppo model (default: 0.0003)
-  --gamma GAMMA         gammma for stable baselines ppo model (default: 0.99)
-  --device {cpu,cuda}   device for the model (default: cpu)
+        `CONFIG=<path-to-yaml-config> python main.py`
 
-experiment:
-  --exp-name EXP_NAME   prefix of the experiment name for logging results (default: test)
-  -v, --verbose         debug mode of logging (default: False)
-  --draw                save animation at each step (default: False)
-
-env:
-  -n NUMBER_OF_PEDESTRIANS, --number-of-pedestrians NUMBER_OF_PEDESTRIANS
-                        number of pedestrians in the simulation (default: 10)
-  --width WIDTH         geometry of environment space: width (default: 1.0)
-  --height HEIGHT       geometry of environment space: height (default: 1.0)
-  --step-size STEP_SIZE
-                        length of pedestrian's and agent's step (default: 0.01)
-  --noise-coef NOISE_COEF
-                        noise coefficient of randomization in viscek model (default: 0.2)
-
-leader params:
-  --enslaving-degree ENSLAVING_DEGREE
-                        enslaving degree of leader in generalized viscek model (default: 0.1)
-
-reward params:
-  --is-new-exiting-reward IS_NEW_EXITING_REWARD
-                        if True, positive reward will be given for each pedestrian, entering the exiting zone (default: True)
-  --is-new-followers-reward IS_NEW_FOLLOWERS_REWARD
-                        if True, positive reward will be given for each pedestrian, entering the leader's zone of influence (default: True)
-  --intrinsic-reward-coef INTRINSIC_REWARD_COEF
-                        coefficient in front of intrinsic reward (default: 1.0)
-  --is-termination-agent-wall-collision IS_TERMINATION_AGENT_WALL_COLLISION
-                        if True, agent's wall collision will terminate episode (default: False)
-  --init-reward-each-step INIT_REWARD_EACH_STEP
-                        constant reward given on each step of agent (default: 0.0)
-
-time:
-  --max-timesteps MAX_TIMESTEPS
-                        max timesteps before truncation (default: 2000)
-  --n-episodes N_EPISODES
-                        number of episodes already done (for pretrained models) (default: 0)
-  --n-timesteps N_TIMESTEPS
-                        number of timesteps already done (for pretrained models) (default: 0)
-
-gravity embedding params:
-  -e ENABLED_GRAVITY_EMBEDDING, --enabled-gravity-embedding ENABLED_GRAVITY_EMBEDDING
-                        if True use gravity embedding (default: True)
-  --alpha ALPHA         alpha parameter of gravity gradient embedding (default: 3)
+╭─ options ─────────────────────────────────────────────────────────────────────────────╮
+│ -h, --help              show this help message and exit                               │
+╰───────────────────────────────────────────────────────────────────────────────────────╯
+╭─ env options ─────────────────────────────────────────────────────────────────────────╮
+│ env params                                                                            │
+│ ───────────────────────────────────────────────────────────────────────────────────── │
+│ --env.experiment-name STR                                                             │
+│                         prefix of the experiment name for logging results (default:   │
+│                         test)                                                         │
+│ --env.number-of-pedestrians INT                                                       │
+│                         number of pedestrians in the simulation (default: 10)         │
+│ --env.width FLOAT       geometry of environment space: width (default: 1.0)           │
+│ --env.height FLOAT      geometry of environment space: height (default: 1.0)          │
+│ --env.step-size FLOAT   length of pedestrian\'s and agent\'s step Typical expected    │
+│                         values: 0.1, 0.05, 0.01 (default: 0.01)                       │
+│ --env.noise-coef FLOAT  noise coefficient of randomization in viscek model (default:  │
+│                         0.2)                                                          │
+│ --env.eps FLOAT         eps (default: 1e-08)                                          │
+│ --env.enslaving-degree FLOAT                                                          │
+│                         enslaving degree of leader in generalized viscek model vary   │
+│                         in (0; 1], where 1 is full enslaving. Typical expected        │
+│                         values: 0.1, 0.5, 1. (default: 1.0)                           │
+│ --env.is-new-exiting-reward, --env.no-is-new-exiting-reward                           │
+│                         if True, positive reward will be given for each pedestrian,   │
+│                         entering the exiting zone (default: False)                    │
+│ --env.is-new-followers-reward, --env.no-is-new-followers-reward                       │
+│                         if True, positive reward will be given for each pedestrian,   │
+│                         entering the leader\'s zone of influence (default: True)      │
+│ --env.intrinsic-reward-coef FLOAT                                                     │
+│                         coefficient in front of intrinsic reward (default: 0.0)       │
+│ --env.is-termination-agent-wall-collision,                                            │
+│ --env.no-is-termination-agent-wall-collision                                          │
+│                         if True, agent\'s wall collision will terminate episode       │
+│                         (default: False)                                              │
+│ --env.init-reward-each-step FLOAT                                                     │
+│                         constant reward given on each step of agent. Typical expected │
+│                         values: 0, -1. (default: -1.0)                                │
+│ --env.max-timesteps INT                                                               │
+│                         max timesteps before truncation (default: 2000)               │
+│ --env.n-episodes INT    number of episodes already done (for pretrained models)       │
+│                         (default: 0)                                                  │
+│ --env.n-timesteps INT   number of timesteps already done (for pretrained models)      │
+│                         (default: 0)                                                  │
+│ --env.render-mode {None}|STR                                                          │
+│                         render mode (has no effect) (default: None)                   │
+│ --env.draw, --env.no-draw                                                             │
+│                         enable saving of animation at each step (default: False)      │
+│ --env.verbose, --env.no-verbose                                                       │
+│                         enable debug mode of logging (default: False)                 │
+│ --env.giff-freq INT     frequency of logging the giff diagram (default: 500)          │
+│ --env.wandb-enabled, --env.no-wandb-enabled                                           │
+│                         enable wandb logging (if True wandb.init() should be called   │
+│                         before initializing the environment) (default: True)          │
+│ --env.path-giff STR     path to save giff animations: {path_giff}/{experiment_name}   │
+│                         (default: saved_data/giff)                                    │
+│ --env.path-png STR      path to save png images of episode trajectories:              │
+│                         {path_png}/{experiment_name} (default: saved_data/png)        │
+│ --env.path-logs STR     path to save logs: {path_logs}/{experiment_name} (default:    │
+│                         saved_data/logs)                                              │
+╰───────────────────────────────────────────────────────────────────────────────────────╯
+╭─ wrap options ────────────────────────────────────────────────────────────────────────╮
+│ env wrappers params                                                                   │
+│ ───────────────────────────────────────────────────────────────────────────────────── │
+│ --wrap.num-obs-stacks INT                                                             │
+│                         number of times to stack observation (default: 1)             │
+│ --wrap.positions {abs,rel,grav}                                                       │
+│                         positions:                                                    │
+│                         - 'abs': absolute coordinates                                 │
+│                         - 'rel': relative coordinates                                 │
+│                         - 'grav': gradient gravity potential encoding                 │
+│                         (GravityEncoding) (default: abs)                              │
+│ --wrap.statuses {no,ohe,cat}                                                          │
+│                         add pedestrians statuses to obeservation as one-hot-encoded   │
+│                         columns. NOTE: this value has no effect when                  │
+│                         `positions`='grad' is selected. (default: no)                 │
+│ --wrap.type {Dict,Box}  concatenate Dict-type observation to a Box-type observation   │
+│                         (with added statuses to the observation) (default: Dict)      │
+│ --wrap.alpha FLOAT      alpha parameter of GravityEncoding. The value of alpha        │
+│                         determines the strength and shape of the potential function.  │
+│                         Higher value results in a stronger repulsion between the      │
+│                         agent and the pedestrians, a lower value results in a weaker  │
+│                         repulsion. Typical expected values vary from 1 to 5.          │
+│                         (default: 3)                                                  │
+╰───────────────────────────────────────────────────────────────────────────────────────╯
+## MODEL PARAMETERS:
+╭─ optional subcommands ────────────────────────────────────────────────────────────────╮
+│ select the config of model  (default: model:type)                                     │
+│ ───────────────────────────────────────────────────────────────────────────────────── │
+│ [{model:sb-config,model:clean-rl-config,model:type}]                                  │
+│     model:sb-config     Stable Baselines Model Config                                 │
+│     model:clean-rl-config                                                             │
+│                         Clean RL Model Config                                         │
+│     model:type                                                                        │
+╰───────────────────────────────────────────────────────────────────────────────────────╯
+╭─ model.agent options ─────────────────────────────────────────────────────────────────╮
+│ select the parametrs of trainig the agent                                             │
+│ ───────────────────────────────────────────────────────────────────────────────────── │
+│ --model.agent.exp-name STR                                                            │
+│     the name of this experiment (default: rpo-agent)                                  │
+│ --model.agent.seed INT                                                                │
+│     seed of the experiment (default: 1)                                               │
+│ --model.agent.torch-deterministic, --model.agent.no-torch-deterministic               │
+│     if toggled, `torch.backends.cudnn.deterministic=False` (default: True)            │
+│ --model.agent.cuda, --model.agent.no-cuda                                             │
+│     if toggled, cuda will be enabled by default (default: True)                       │
+│ --model.agent.total-timesteps INT                                                     │
+│     total timesteps of the experiments (default: 80000000)                            │
+│ --model.agent.learning-rate FLOAT                                                     │
+│     the learning rate of the optimizer (default: 0.0003)                              │
+│ --model.agent.num-envs INT                                                            │
+│     the number of parallel game environments (default: 3)                             │
+│ --model.agent.num-steps INT                                                           │
+│     the number of steps to run in each environment per policy rollout (default: 2048) │
+│ --model.agent.anneal-lr, --model.agent.no-anneal-lr                                   │
+│     Toggle learning rate annealing for policy and value networks (default: True)      │
+│ --model.agent.gamma FLOAT                                                             │
+│     the discount factor gamma (default: 0.99)                                         │
+│ --model.agent.gae-lambda FLOAT                                                        │
+│     the lambda for the general advantage estimation (default: 0.95)                   │
+│ --model.agent.num-minibatches INT                                                     │
+│     the number of mini-batches (default: 32)                                          │
+│ --model.agent.update-epochs INT                                                       │
+│     the K epochs to update the policy (default: 10)                                   │
+│ --model.agent.norm-adv, --model.agent.no-norm-adv                                     │
+│     Toggles advantages normalization (default: True)                                  │
+│ --model.agent.clip-coef FLOAT                                                         │
+│     the surrogate clipping coefficient (default: 0.2)                                 │
+│ --model.agent.clip-vloss, --model.agent.no-clip-vloss                                 │
+│     Toggles whether or not to use a clipped loss for the value function, as per the   │
+│     paper. (default: True)                                                            │
+│ --model.agent.ent-coef FLOAT                                                          │
+│     coefficient of the entropy (default: 0.0)                                         │
+│ --model.agent.vf-coef FLOAT                                                           │
+│     coefficient of the value function (default: 0.5)                                  │
+│ --model.agent.max-grad-norm FLOAT                                                     │
+│     the maximum norm for the gradient clipping (default: 0.5)                         │
+│ --model.agent.target-kl {None}|FLOAT                                                  │
+│     the target KL divergence threshold (default: None)                                │
+╰───────────────────────────────────────────────────────────────────────────────────────╯
+╭─ subcommands ─────────────────────────────────────────────────────────────────────────╮
+│ select the network params                                                             │
+│ ───────────────────────────────────────────────────────────────────────────────────── │
+│ {model.network:rpo-linear-network-config,model.network:rpo-transformer-embedding-con… │
+│     model.network:rpo-linear-network-config                                           │
+│     model.network:rpo-transformer-embedding-config                                    │
+│     RPO agent network with transforment encoding                                      │
+│     model.network:rpo-deep-sets-embedding-config                                      │
+│     RPO agent network with deep sets encoding                                         │
+╰───────────────────────────────────────────────────────────────────────────────────────╯
 ```
 
 ### Outputs
 
-Outputs are to be saved in following directories:
+Outputs are to be saved in following directories / files:
 
 - `saved_data/giff/` $\rightarrow$ episode trajectoriy in giff
 - `saved_data/png/` $\rightarrow$ episode trajectory in png
 - `saved_data/models/` $\rightarrow$ trained models
 - `saved_data/logs/` $\rightarrow$ `${exp_name}.txt` log of episode trajectories
-- `saved_data/tb-logs/` $\rightarrow$ `tensorboard` logs
+- `saved_data/tb_logs/` $\rightarrow$ `tensorboard` logs
+- `saved_data/config/` $\rightarrow$ `${exp_name}.yaml` config of current experiment
 - `wandb/` $\rightarrow$ `wandb` logs
 
   **Example of logging of conducted experiment**
