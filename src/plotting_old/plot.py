@@ -8,7 +8,7 @@ from tqdm import tqdm
 
 from src.env import EvacuationEnv
 from src.env import constants
-from src import params
+from src import params_old
 
 path_save = 'saved_data/plot_efficiency'
 if not os.path.exists(path_save): os.makedirs(path_save)
