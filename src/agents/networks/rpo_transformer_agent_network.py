@@ -13,6 +13,7 @@ from .rpo_linear_agent_network import RPOLinearNetwork, RPOLinearNetworkConfig
 
 @dataclass
 class RPOTransformerEmbeddingConfig:
+    """RPO agent network with transforment encoding"""
     
     network: RPOLinearNetworkConfig
     """params of linear network"""

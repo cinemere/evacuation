@@ -1,31 +1,21 @@
-from dataclasses import dataclass
-
-from . import BaseAgent
-from .networks.rpo_linear_agent_network import RPOLinearNetwork, RPOLinearNetworkConfig
-from .networks.rpo_transformer_agent_network import RPOTransformerEmbedding, RPOTransformerEmbeddingConfig
-from .networks.rpo_deep_sets_agent_network import RPODeepSetsEmbedding, RPODeepSetsEmbeddingConfig
-        
-from dataclasses import dataclass
-import gymnasium as gym
-import random
-import numpy as np
-import torch
-
-from env import EvacuationEnv, EnvConfig, EnvWrappersConfig, setup_env
-
 import os
-import random
 import time
 from dataclasses import dataclass
-
 import gymnasium as gym
+import random
 import numpy as np
 import torch
 import torch.nn as nn
 import torch.optim as optim
-import tyro
-from torch.distributions.normal import Normal
 from torch.utils.tensorboard import SummaryWriter
+
+from . import BaseAgent
+# from .networks.rpo_linear_agent_network import RPOLinearNetwork, RPOLinearNetworkConfig
+# from .networks.rpo_transformer_agent_network import RPOTransformerEmbedding, RPOTransformerEmbeddingConfig
+# from .networks.rpo_deep_sets_agent_network import RPODeepSetsEmbedding, RPODeepSetsEmbeddingConfig
+from .networks import *
+
+from env import EnvConfig, EnvWrappersConfig, setup_env
 
 
 TBLOGS_DIR = os.getenv("TBLOGS_DIR", "saved_data/tb_logs")
@@ -38,7 +28,8 @@ def wrapping(env, gamma):
     env = gym.wrappers.NormalizeObservation(env)
     env = gym.wrappers.TransformObservation(env, lambda obs: np.clip(obs, -1, 1))
     env = gym.wrappers.NormalizeReward(env, gamma=gamma)
-    env = gym.wrappers.TransformReward(env, lambda reward: np.clip(reward, -100, 100)) ## TODO: Check without this
+    env = gym.wrappers.TransformReward(
+        env, lambda reward: np.clip(reward, -100, 100)) ## TODO: Check without this
     return env
 
 def make_env(env_config, env_wrappers_config, gamma):
@@ -49,6 +40,8 @@ def make_env(env_config, env_wrappers_config, gamma):
 
 @dataclass
 class RPOAgentTrainingConfig(BaseAgent):
+    """Learnable RPO (Robust Policy Optimization) agent config"""
+    
     exp_name: str = "rpo-agent"
     """the name of this experiment"""
     seed: int = 1
