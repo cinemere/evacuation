@@ -7,3 +7,4 @@ gymnasium
 tensorboard
 stable-baselines3
 wandb
+tyro
