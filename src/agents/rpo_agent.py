@@ -49,8 +49,7 @@ def make_env(env_config, env_wrappers_config, gamma):
 
 @dataclass
 class RPOAgentTrainingConfig(BaseAgent):
-
-    exp_name: str = "rpo-tr3-initagent0"
+    exp_name: str = "rpo-agent"
     """the name of this experiment"""
     seed: int = 1
     """seed of the experiment"""
@@ -119,6 +118,12 @@ class RPOAgent:
             training_config: RPOAgentTrainingConfig,
             network_config: RPOLinearNetworkConfig | RPOTransformerEmbeddingConfig,
         ):
+        """
+        Learnable RPO (Robust Policy Optimization) agent.
+        
+        Original paper: https://arxiv.org/abs/2212.07536 
+        Code based on: https://github.com/vwxyzjn/cleanrl/blob/master/cleanrl/rpo_continuous_action.py
+        """
                
         self.cfg = training_config
 
