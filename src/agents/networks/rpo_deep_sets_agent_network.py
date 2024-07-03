@@ -13,6 +13,7 @@ from .rpo_linear_agent_network import RPOLinearNetwork, RPOLinearNetworkConfig
 
 @dataclass
 class RPODeepSetsEmbeddingConfig:
+    """RPO agent network with deep sets encoding"""
     
     network: RPOLinearNetworkConfig
     """params of linear network"""

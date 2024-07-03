@@ -1,24 +1,18 @@
 import os
 from dataclasses import dataclass, asdict
 from typing import Literal
-# from src.params_old import *
-import tyro
 import yaml
 import wandb
 from datetime import datetime
 
-from env import EvacuationEnv, EnvConfig, EnvWrappersConfig, setup_env
-from agents import (
-    RPOAgent, RPOAgentTrainingConfig,
-    RPOLinearNetwork, RPOLinearNetworkConfig, 
-    RPOTransformerEmbedding, RPOTransformerEmbeddingConfig,
-    RPODeepSetsEmbedding, RPODeepSetsEmbeddingConfig
-)
+from env import EnvConfig, EnvWrappersConfig
+from agents import (RPOAgentTrainingConfig, RPOLinearNetworkConfig, 
+    RPOTransformerEmbeddingConfig, RPODeepSetsEmbeddingConfig)
 
 WANDB_DIR = os.getenv("WANDB_DIR", "./saved_data/")
 CONFIG = os.getenv("CONFIG", "")
 DEVICE = os.getenv("DEVICE", "cpu")
-    
+
 @dataclass
 class SBConfig:
     """Stable Baselines Model Config"""
@@ -41,7 +35,7 @@ class SBConfig:
 
 @dataclass
 class CleanRLConfig:
-    """Stable Baselines Model Config"""
+    """Clean RL Model Config"""
     
     # is_embedding: bool = False
     # """is embedding"""
@@ -101,11 +95,11 @@ class Args:
             f.write(yaml.dump(asdict(self)))
             
     @classmethod
-    def create_from_yaml(cls, path: str):
+    def create_from_yaml(cls, path: str = CONFIG):
         import warnings
         warnings.warn('All arguments will be loaded from yaml file (from $CONFIG).')
         
-        with open(CONFIG, 'r') as cfg:
+        with open(path, 'r') as cfg:
             content = yaml.load(cfg, Loader=yaml.Loader)
         
         config = cls(
@@ -113,37 +107,12 @@ class Args:
             EnvWrappersConfig(**content['wrap']))
         return config
     
-                       
-if __name__ == "__main__":
-    
-    help_text="""
-    To use yaml config set the env variable `CONFIG`:
-    
-    `CONFIG=<path-to-yaml-config> python main.py`
-    
-    """
-    # config = tyro.cli(Args, description=help_text, args=["model:clean-rl-config", "--model.agent.total-timesteps", "100000"])
-    config = Args.create_from_yaml(CONFIG) if CONFIG else tyro.cli(Args, description=help_text)
-    
-    config.print_args()
-    config.save_args()
-    
-    # env = setup_env(env_config=config.env,
-    #                 wrap_config=config.wrap)
-    # env.reset()
-    # print(env)
-    # env.step(env.action_space.sample())
-    # env.step(env.action_space.sample())
-    # env.step(env.action_space.sample())
-    # env.step(env.action_space.sample())
-    # env.reset()
-    # print(f"{env.unwrapped.pedestrians.num=}")
-
-    training = RPOAgent(
-        env_config=config.env,
-        env_wrappers_config=config.wrap,
-        training_config=config.model.agent,
-        network_config=config.model.network
-    )
-    training.learn()
-    
+    @classmethod
+    def help(cls):
+        message = """
+        To use yaml config set the env variable `CONFIG`:
+        
+        `CONFIG=<path-to-yaml-config> python main.py`
+        
+        """
+        return message

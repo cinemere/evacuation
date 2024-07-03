@@ -8,7 +8,7 @@ from tqdm import tqdm
 from src.env import EvacuationEnv
 from src.env import constants
 from src import params_old
-from main import setup_env
+from src.main import setup_env
 from src.utils import parse_args
 
 import wandb
