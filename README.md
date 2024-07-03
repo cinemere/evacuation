@@ -116,8 +116,6 @@ python3 src/main.py --env.experiment-name "my-experiment" \
 
 ## Documentation
 
-**Note.** Currently only stable baselines PPO model is available.
-
 ### Input parameters
 
 Most valuable parametes can be set throw command line. However some parameters are in files, here such parameters are outlined:
