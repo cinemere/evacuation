@@ -56,7 +56,7 @@ class Args:
     wrap: EnvWrappersConfig
     """env wrappers params"""
     
-    model: SBConfig | CleanRLConfig = CleanRLConfig
+    model: SBConfig | CleanRLConfig
     """select the config of model"""
     
     def __post_init__(self):
@@ -74,6 +74,7 @@ class Args:
     def setup_exp_name(self):
         self.now = datetime.now().strftime(f"%d-%b-%H-%M-%S")
         self.env.experiment_name = f"{self.env.experiment_name}_{self.now}"
+        self.model.agent.exp_name = f"{self.env.experiment_name}_{self.now}"
             
     def setup_wandb_logging(self):
         if self.env.wandb_enabled:
