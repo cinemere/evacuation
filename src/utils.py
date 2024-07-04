@@ -10,6 +10,7 @@ from agents import (RPOAgentTrainingConfig, RPOLinearNetworkConfig,
     RPOTransformerEmbeddingConfig, RPODeepSetsEmbeddingConfig)
 
 WANDB_DIR = os.getenv("WANDB_DIR", "./saved_data/")
+WANDB_PROJECT = os.getenv("WANDB_PROJECT", "evacuation_june")
 CONFIG = os.getenv("CONFIG", "")
 DEVICE = os.getenv("DEVICE", "cpu")
 
@@ -77,11 +78,11 @@ class Args:
     def setup_wandb_logging(self):
         if self.env.wandb_enabled:
             wandb.init(
-                project="evacuation",
+                project=WANDB_PROJECT,
                 name=self.env.experiment_name,
                 notes=self.env.experiment_name,
                 config=self,
-                dir='saved_data/wandb'
+                dir=WANDB_DIR
         )            
 
     def print_args(self):
