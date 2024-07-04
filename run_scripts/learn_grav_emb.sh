@@ -1,5 +1,5 @@
 export DEVICE="cpu"
-export WANDB_PROJECT="evacuation"
+export WANDB_PROJECT="evacuation_june"
 
 EXPERIMENT_NAME="grav-emb"
 
