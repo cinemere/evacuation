@@ -11,6 +11,7 @@ from agents import (RPOAgentTrainingConfig, RPOLinearNetworkConfig,
 
 WANDB_DIR = os.getenv("WANDB_DIR", "./saved_data/")
 WANDB_PROJECT = os.getenv("WANDB_PROJECT", "evacuation_june")
+WANDB_ENTITY = os.getenv("WANDB_ENTITY", "albinakl")
 CONFIG = os.getenv("CONFIG", "")
 DEVICE = os.getenv("DEVICE", "cpu")
 
@@ -84,7 +85,7 @@ class Args:
                 notes=self.env.experiment_name,
                 config=self,
                 dir=WANDB_DIR,
-                entity = "dreamteam26"
+                entity=WANDB_ENTITY,
         )            
 
     def print_args(self):
