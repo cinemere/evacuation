@@ -83,7 +83,8 @@ class Args:
                 name=self.env.experiment_name,
                 notes=self.env.experiment_name,
                 config=self,
-                dir=WANDB_DIR
+                dir=WANDB_DIR,
+                entity = "dreamteam26"
         )            
 
     def print_args(self):
