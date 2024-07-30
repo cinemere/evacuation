@@ -11,7 +11,7 @@ python3 src/main.py \
 --env.noise-coef 0.2 \
 --env.enslaving-degree 1. \
 --env.is-new-exiting-reward \
---env.is-new-followers-reward \
+--env.no-is-new-followers-reward \
 --env.intrinsic-reward-coef 0. \
 --env.giff-freq 500 \
 --env.wandb-enabled \
@@ -19,7 +19,7 @@ python3 src/main.py \
 --wrap.statuses ohe \
 --wrap.type Box \
 model:clean-rl-config \
---model.agent.learning_rate 0.0005 \
+--model.agent.learning_rate 0.001 \
 --model.agent.num_envs 3 \
 model.network:rpo-transformer-embedding-config \
 --model.network.num-blocks 2 \
