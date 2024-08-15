@@ -1,3 +1,4 @@
+#!/bin/sh
 export DEVICE="cpu"
 export WANDB_PROJECT="evacuation_june"
 
