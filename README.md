@@ -1,6 +1,6 @@
 # evacuation
 
-RL environment to study the evacuation of pedestrians for dummly rooms.
+RL environment to study the evacuation of pedestrians for dimly rooms.
 
 ## Learning curves for [stable-baselines3](https://github.com/DLR-RM/stable-baselines3/tree/master) PPO agent
 
