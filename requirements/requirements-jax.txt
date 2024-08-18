@@ -1,0 +1,11 @@
+matplotlib==3.8.0
+numpy
+tqdm
+scipy
+torch
+gymnasium
+tensorboard
+stable-baselines3
+wandb
+tyro
+jax[cuda12]
