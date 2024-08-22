@@ -119,7 +119,7 @@ class EvacuationEnv(gym.Env):
                 "episode_length" : self.time.now,
                 "escaped_pedestrians" : sum(self.pedestrians.statuses == Status.ESCAPED),
                 "exiting_pedestrians" : sum(self.pedestrians.statuses == Status.EXITING),
-                "following_pedestrians" : sum(self.pedestrians.statuses == Status.FOLLOWER),
+                "following_pedestrians" : sum(self.pedestrians.statuses == Status.FOLLOWER),    
                 "viscek_pedestrians" : sum(self.pedestrians.statuses == Status.VISCEK),
                 "overall_timesteps" : self.time.overall_timesteps
             }
