@@ -1,29 +1,7 @@
-from flax import struct
 import jax.numpy as jnp
 from typing import Optional
 
-EXIT = jnp.asarray((0, 0), dtype=jnp.float32)
-
-class SwitchDistance(struct.PyTreeNode):
-    to_leader: float = struct.field(pytree_node=False, default=0.2)             # radius of catch by leader
-    to_other_pedestrian: float = struct.field(pytree_node=False, default=0.1)   # SWITCH_DISTANCE_TO_LEADER
-    to_exit: float = struct.field(pytree_node=False, default=0.4)
-    to_escape: float = struct.field(pytree_node=False, default=0.01)
-
-
-class Status(struct.PyTreeNode):
-    VISCEK: int = struct.field(pytree_node=False, default=0)
-    "Pedestrian under Viscek rules."
-
-    FOLLOWER: int = struct.field(pytree_node=False, default=1)
-    "Follower of the leader particle (agent)."
-
-    EXITING: int = struct.field(pytree_node=False, default=2)
-    "Pedestrian in exit zone."
-
-    ESCAPED: int = struct.field(pytree_node=False, default=3)
-    "Evacuated pedestrian."    
-
+from .constants import Status, SwitchDistance, EXIT
 
 def is_distance_low(
     pedestrians_positions: jnp.ndarray,
@@ -45,7 +23,6 @@ def is_distance_low(
     Returns:
         jnp.ndarray: boolean matrix
     """
-    
     distances = jnp.linalg.norm(pedestrians_positions - destination[None, :], axis=1)
     return distances < radius
 

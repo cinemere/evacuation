@@ -4,17 +4,16 @@ from typing import Any, Generic, Optional, TypeVar, Union
 
 import jax
 import jax.numpy as jnp
-import numpy as np
 from flax import struct
 from typing_extensions import TypeAlias
 
 
 class AgentState(struct.PyTreeNode):    
-    position: jax.Array = struct.field(default_factory=lambda: jnp.asarray((0, 0)))
-    direction: jax.Array = struct.field(default_factory=lambda: jnp.asarray((0, 0)))
     # how to change enslaving degree ???
     # enslaving_degree: jax.Array = jnp.asarray(0, dtype=jnp.uint8)
     enslaving_degree: jax.Array
+    position: jax.Array = struct.field(default_factory=lambda: jnp.asarray((0, 0)))
+    direction: jax.Array = struct.field(default_factory=lambda: jnp.asarray((0, 0)))
 
 class PedestriansState(struct.PyTreeNode):
     # how to read number of pedestrians from params???
@@ -39,7 +38,7 @@ class State(struct.PyTreeNode, Generic[EnvCarryT]):
     pedestrians: PedestriansState
     agent: AgentState
     # state_encoding: jax.Array
-    carry: EnvCarryT
+    # carry: EnvCarryT
 
 class StepType(jnp.uint8):
     FIRST: jax.Array = jnp.asarray(0, dtype=jnp.uint8)
