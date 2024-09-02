@@ -141,8 +141,8 @@ class Environment(Generic[EnvParamsT]):  # (abc.ABC, Generic[EnvParamsT]):
 
         # init agent
         agent = AgentState(
-            position=jnp.asarray((0, 0)),
-            direction=jnp.asarray((0, 0)),
+            position=jnp.asarray((0.0, 0.0)),
+            direction=jnp.asarray((0.0, 0.0)),
             enslaving_degree=jnp.asarray(params.enslaving_degree),
         )
 
@@ -195,7 +195,7 @@ class Environment(Generic[EnvParamsT]):  # (abc.ABC, Generic[EnvParamsT]):
         self,
         params: EnvParamsT,
         timestep: TimeStep[EnvCarryT],
-        action: IntOrArray,
+        action: jax.Array,
         key: jax.Array,
     ) -> TimeStep[EnvCarryT]:
 
