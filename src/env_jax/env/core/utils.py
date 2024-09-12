@@ -92,10 +92,10 @@ def estimate_mean_direction_among_neighbours(
     key: jax.Array,
 ):
     """Viscek model"""
-    fv_directions_x = (intersection * efv_directions[:, 0]).sum(
+    fv_directions_x = (intersection * efv_directions.at[:, 0].get()).sum(
         axis=1
     ) / n_intersections
-    fv_directions_y = (intersection * efv_directions[:, 1]).sum(
+    fv_directions_y = (intersection * efv_directions.at[:, 1].get()).sum(
         axis=1
     ) / n_intersections
     fv_theta = jnp.arctan2(fv_directions_y, fv_directions_x)

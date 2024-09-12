@@ -1,4 +1,5 @@
 import jax.numpy as jnp
+import jax
 from typing import Dict, Tuple
 
 from .constants import Status
@@ -86,11 +87,15 @@ def estimate_intrinsic_reward(
     """This is intrinsic reward, which can be given to the agent at each step"""
     return 0 - mean_distance(pedestrians_positions, exit_position)
 
+
 def estimate_agent_reward(
     agent_step_info: Dict[str, bool],
-    is_termination_agent_wall_collision: bool, 
+    is_termination_agent_wall_collision: bool,
 ) -> Tuple[float, bool]:
-    if agent_step_info['wall_collision']:
-        return is_termination_agent_wall_collision, -5.
-    else:
-        return False, 0.
+
+    termination, reward = jax.lax.cond(
+        agent_step_info["wall_collision"],
+        lambda: (is_termination_agent_wall_collision, -5.),
+        lambda: (False, 0.),
+    )
+    return termination, reward

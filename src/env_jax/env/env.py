@@ -27,7 +27,7 @@ from .types import (
 
 class EnvParams(struct.PyTreeNode):
 
-    max_steps: Optional[None] = struct.field(pytree_node=False, default=None)
+    # max_steps: Optional[None] = struct.field(pytree_node=False, default=None)
     render_mode: str = struct.field(pytree_node=False, default="rgb_array")
 
     number_of_pedestrians: int = struct.field(pytree_node=False, default=10)
@@ -208,7 +208,7 @@ class Environment(Generic[EnvParamsT]):  # (abc.ABC, Generic[EnvParamsT]):
             width=params.width,
             height=params.height,
         )
-        reward_agent, terminated_agent = estimate_agent_reward(
+        terminated_agent, reward_agent = estimate_agent_reward(
             agent_step_info=agent_step_info,
             is_termination_agent_wall_collision=params.is_termination_agent_wall_collision,
         )
@@ -228,6 +228,9 @@ class Environment(Generic[EnvParamsT]):  # (abc.ABC, Generic[EnvParamsT]):
             width=params.width,
             height=params.height,
             num_pedestrians=params.number_of_pedestrians,
+            init_reward_each_step=params.init_reward_each_step,
+            is_new_exiting_reward=params.is_new_exiting_reward,
+            is_new_followers_reward=params.is_new_followers_reward,
             key=key,
         )
 
@@ -247,9 +250,10 @@ class Environment(Generic[EnvParamsT]):  # (abc.ABC, Generic[EnvParamsT]):
         # Record observation
         new_observation = self._get_observation(params, new_state)
 
-        assert params.max_steps is not None
-        truncated = jnp.equal(new_state.step_num, params.max_steps)
+        # assert params.max_steps is not None
+        truncated = jnp.equal(new_state.step_num, params.max_timesteps)
 
+        print(f"{terminated_agent=} {terminated_pedestrians=}")
         terminated = terminated_agent | terminated_pedestrians
 
         step_type = jax.lax.select(terminated | truncated, StepType.LAST, StepType.MID)
