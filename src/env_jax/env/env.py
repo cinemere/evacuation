@@ -9,9 +9,11 @@ from flax import struct
 from typing_extensions import TypeAlias
 
 from .core.constants import EXIT, Status
+from .core.rewards import estimate_agent_reward
 from .core.step import agent_step, pedestrians_step
 from .core.utils import update_statuses
-from .core.rewards import estimate_agent_reward
+from .render.plot import render_plot
+from .params import EnvParams, EnvParamsT
 from .types import (
     AgentState,
     EnvCarryT,
@@ -21,106 +23,6 @@ from .types import (
     StepType,
     TimeStep,
 )
-
-# import abc
-
-
-class EnvParams(struct.PyTreeNode):
-
-    # max_steps: Optional[None] = struct.field(pytree_node=False, default=None)
-    render_mode: str = struct.field(pytree_node=False, default="rgb_array")
-
-    number_of_pedestrians: int = struct.field(pytree_node=False, default=10)
-    """number of pedestrians in the simulation"""
-
-    width: float = struct.field(pytree_node=False, default=1.0)
-    """geometry of environment space: width"""
-
-    height: float = struct.field(pytree_node=False, default=1.0)
-    """geometry of environment space: height"""
-
-    step_size: float = struct.field(pytree_node=False, default=0.01)
-    """length of pedestrian\'s and agent\'s step
-    Typical expected values: 0.1, 0.05, 0.01"""
-
-    noise_coef: float = struct.field(pytree_node=False, default=0.2)
-    """noise coefficient of randomization in viscek model"""
-
-    eps: float = struct.field(pytree_node=False, default=1e-8)
-    """eps"""
-
-    # ---- Leader params ----
-
-    enslaving_degree: float = struct.field(pytree_node=False, default=1.0)
-    """enslaving degree of leader in generalized viscek model
-    vary in (0; 1], where 1 is full enslaving.
-    Typical expected values: 0.1, 0.5, 1."""
-
-    # ---- Reward params ----
-
-    is_new_exiting_reward: bool = struct.field(pytree_node=False, default=False)
-    """if True, positive reward will be given for each pedestrian,
-    entering the exiting zone"""
-
-    is_new_followers_reward: bool = struct.field(pytree_node=False, default=True)
-    """if True, positive reward will be given for each pedestrian,
-    entering the leader\'s zone of influence"""
-
-    intrinsic_reward_coef: float = struct.field(pytree_node=False, default=0.0)
-    """coefficient in front of intrinsic reward"""
-
-    is_termination_agent_wall_collision: bool = struct.field(
-        pytree_node=False, default=False
-    )
-    """if True, agent\'s wall collision will terminate episode"""
-
-    init_reward_each_step: float = struct.field(pytree_node=False, default=-1)
-    """constant reward given on each step of agent. 
-    Typical expected values: 0, -1."""
-
-    # # ---- Timing in the environment ----
-
-    max_timesteps: int = struct.field(pytree_node=False, default=2_000)
-    """max timesteps before truncation"""
-
-    # n_episodes: int = 0
-    # """number of episodes already done (for pretrained models)"""
-
-    # n_timesteps: int = 0
-    # """number of timesteps already done (for pretrained models)"""
-
-    # # ---- Logging params ----
-
-    # render_mode: str | None = None
-    # """render mode (has no effect)"""
-
-    # draw: bool = False
-    # """enable saving of animation at each step"""
-
-    # verbose: bool = False
-    # """enable debug mode of logging"""
-
-    # giff_freq: int = 500
-    # """frequency of logging the giff diagram"""
-
-    # wandb_enabled: bool = True
-    # """enable wandb logging (if True wandb.init() should be called before
-    # initializing the environment)"""
-
-    # # ---- Logging artifacts dirs ----
-
-    # path_giff: str = 'saved_data/giff'
-    # """path to save giff animations: {path_giff}/{experiment_name}"""
-
-    # path_png: str = 'saved_data/png'
-    # """path to save png images of episode trajectories: {path_png}/{experiment_name}"""
-
-    # path_logs: str = 'saved_data/logs'
-    # """path to save logs: {path_logs}/{experiment_name}"""
-
-
-EnvParamsT = TypeVar("EnvParamsT", bound="EnvParams")
-
 
 class Environment(Generic[EnvParamsT]):  # (abc.ABC, Generic[EnvParamsT]):
     # @abc.abstractmethod
@@ -137,7 +39,9 @@ class Environment(Generic[EnvParamsT]):  # (abc.ABC, Generic[EnvParamsT]):
 
     # @abc.abstractmethod
     def _generate_problem(self, params: EnvParamsT, key: jax.Array) -> State[EnvCarryT]:
-        key, *keys = jax.random.split(key, num=3)
+        key, pedestrians_positions_key, pedestrians_direction_key = jax.random.split(
+            key, num=3
+        )
 
         # init agent
         agent = AgentState(
@@ -148,10 +52,16 @@ class Environment(Generic[EnvParamsT]):  # (abc.ABC, Generic[EnvParamsT]):
 
         # init pedestrians
         pedestrians_positions = jax.random.uniform(
-            keys[0], shape=(params.number_of_pedestrians, 2), minval=-1, maxval=1
+            pedestrians_positions_key,
+            shape=(params.number_of_pedestrians, 2),
+            minval=-1,
+            maxval=1,
         )
         pedestrians_directions = jax.random.uniform(
-            keys[1], shape=(params.number_of_pedestrians, 2), minval=-1, maxval=1
+            pedestrians_direction_key,
+            shape=(params.number_of_pedestrians, 2),
+            minval=-1,
+            maxval=1,
         )
         statuses = jnp.zeros((params.number_of_pedestrians), dtype=jnp.uint8)
         statuses = update_statuses(statuses, pedestrians_positions, agent.position)
@@ -177,6 +87,7 @@ class Environment(Generic[EnvParamsT]):  # (abc.ABC, Generic[EnvParamsT]):
         obs["agent_position"] = state.agent.position
         obs["pedestrians_position"] = state.pedestrians.positions
         obs["exit_position"] = EXIT
+        return obs
 
     def reset(self, params: EnvParamsT, key: jax.Array) -> TimeStep[EnvCarryT]:
         # create state by generating pedestrians positions
@@ -195,9 +106,10 @@ class Environment(Generic[EnvParamsT]):  # (abc.ABC, Generic[EnvParamsT]):
         self,
         params: EnvParamsT,
         timestep: TimeStep[EnvCarryT],
-        action: jax.Array,
-        key: jax.Array,
+        action: jax.Array
     ) -> TimeStep[EnvCarryT]:
+
+        state_key, pedestrians_step_key = jax.random.split(timestep.state.key, num=2)
 
         # Agent step
         new_agent, agent_step_info = agent_step(
@@ -231,7 +143,7 @@ class Environment(Generic[EnvParamsT]):  # (abc.ABC, Generic[EnvParamsT]):
             init_reward_each_step=params.init_reward_each_step,
             is_new_exiting_reward=params.is_new_exiting_reward,
             is_new_followers_reward=params.is_new_followers_reward,
-            key=key,
+            key=pedestrians_step_key,
         )
 
         # Collect rewards
@@ -245,6 +157,7 @@ class Environment(Generic[EnvParamsT]):  # (abc.ABC, Generic[EnvParamsT]):
             pedestrians=new_pedestrians,
             agent=new_agent,
             step_num=timestep.state.step_num + 1,
+            key=state_key
         )
 
         # Record observation
@@ -271,10 +184,11 @@ class Environment(Generic[EnvParamsT]):  # (abc.ABC, Generic[EnvParamsT]):
     def render(
         self, params: EnvParamsT, timestep: TimeStep[EnvCarryT]
     ) -> np.ndarray | str:
-        # if params.render_mode == "rgb_array":
-        #    return rgb_render(np.asarray(timestep.state.grid), timestep.state.agent, params.view_size)
+        if params.render_mode == "plot":
+           return render_plot(params, timestep)
         # elif params.render_mode == "rich_text":
         #    return text_render(timestep.state.grid, timestep.state.agent)
         # else:
         #    raise RuntimeError("Unknown render mode. Should be one of: ['rgb_array', 'rich_text']")
         ...
+

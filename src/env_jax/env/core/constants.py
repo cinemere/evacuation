@@ -1,7 +1,7 @@
 import jax.numpy as jnp
 from flax import struct
 
-EXIT = jnp.asarray((0, 0), dtype=jnp.float32)
+EXIT = jnp.asarray((0.0, -1.0), dtype=jnp.float32)
 "Exit position."
 
 
