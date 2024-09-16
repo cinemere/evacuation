@@ -71,32 +71,22 @@ def get_new_exiting_directions(
     pedestrians: PedestriansState,
     step_size: float,
 ) -> PedestriansState:
-    # Estimate direction to exit for exiting pedestrians
-    # vec2exit = EXIT - pedestrians.positions[exiting]
-
-    def get_normed_direction(positions):
+    def get_normed_direction(positions, step_size):
+        # Estimate direction to exit
         vec2exit = EXIT - positions
-        len2exit = jnp.linalg.norm(vec2exit, axis=1)
-        vec_size = jnp.minimum(len2exit, step_size) + 0.000001  # TODO add eps variable
+        len2exit = jnp.linalg.norm(vec2exit, axis=1) + 0.000001  # TODO add eps variable
+        vec_size = jnp.minimum(len2exit, step_size)
+        # Scale the direction to step size
         normed_vec2exit = (vec2exit.T / len2exit * vec_size).T
         return normed_vec2exit
 
-    # vec2exit = jnp.where(exiting, EXIT-pedestrians.positions, 0)
-
-    # # Normirate the direction
-    # len2exit = jnp.linalg.norm(vec2exit, axis=1)
-    # vec_size = jnp.minimum(len2exit, step_size)
-    # normed_vec2exit = jnp.where(vec2exit.T / len2exit * vec_size).T
-
-    new_directions = jnp.where(
-        exiting, get_normed_direction(pedestrians.positions), pedestrians.directions
-    )
-
     # Return the updated directons
-    new_pedestrians = pedestrians.replace(
-        # directions=pedestrians.directions.at[exiting].set(normed_vec2exit)
-        directions=new_directions
+    new_directions = jnp.where(
+        exiting,
+        get_normed_direction(pedestrians.positions, step_size),
+        pedestrians.directions,
     )
+    new_pedestrians = pedestrians.replace(directions=new_directions)
     return new_pedestrians
 
 
@@ -108,70 +98,45 @@ def get_new_direction_based_on_viscek_model(
     step_size: float,
     key: jax.Array,
 ) -> PedestriansState:
-    # Get the directions of all moving particles
-    # # efv_directions = pedestrians.directions[moving_paricles_cond]
-    # # efv_directions = pedestrians.directions[moving_paricles_cond]
-    # efv_directions = pedestrians.directions.at[moving_paricles_cond].get()
-    # normed_efv_directions = (
-    #     efv_directions.T / jnp.linalg.norm(efv_directions, axis=1)
-    # ).T
 
-    # # Estimate distances between all moving and all updated particles
-    # dm = jnp.linalg.norm(
-    #     # pedestrians.positions[updated_particles_cond][:, None]
-    #     # - pedestrians.positions[moving_paricles_cond][None, :],
-    #     pedestrians.positions.at[updated_particles_cond].get()[:, None]
-    #     - pedestrians.positions.at[moving_paricles_cond].get()[None, :],
-    #     axis=2,
-    # )
-    # intersection = jnp.where(dm < SwitchDistance.to_other_pedestrian, 1, 0)
-    # n_intersections = jnp.maximum(1, intersection.sum(axis=1))
-
-    # # Estimate the updated directions
-    # fv_directions = estimate_mean_direction_among_neighbours(
-    #     intersection, normed_efv_directions, n_intersections, noise_coef, key
-    # )
-
-    # # Record new directions of following and viscek pedestrians (based on Viscek model)
-    # new_directions = pedestrians.directions.at[updated_particles_cond].set(
-    #     fv_directions.T * step_size  # FIXME why step size is on directions????
-    # )
-
-    def get_new_directions():
-        efv_directions = pedestrians.directions
-        normed_efv_directions = (
-            efv_directions.T / jnp.linalg.norm(efv_directions, axis=1)
+    def get_new_directions(
+        directions: jax.Array,
+        positions: jax.Array,
+        cond_updated: jax.Array,
+        cond_moving: jax.Array,
+        key: jax.Array,
+    ):
+        normed_directions = (
+            directions.T / (jnp.linalg.norm(directions, axis=1) + 0.00001)
         ).T  # TODO can we remove norm here?
 
         dm = jnp.linalg.norm(
-            # pedestrians.positions[updated_particles_cond][:, None]
-            # - pedestrians.positions[moving_paricles_cond][None, :],
-            pedestrians.positions[:, None] - pedestrians.positions[None, :],
+            positions[:, None] - positions[None, :],
             axis=2,
         )
-        # mask_dm = jnp.vecdot(
-        #     updated_particles_cond[:, None, None],
-        #     moving_paricles_cond[None, :, None],
-        #     axis=2,
-        # )
-        mask_dm = jnp.vecdot(
-            updated_particles_cond[:, None], moving_paricles_cond[None, :], axis=2
-        )
-
+        mask_dm = jnp.vecdot(cond_updated[:, None], cond_moving[None, :], axis=2)
         intersection = jnp.where(
             jnp.logical_and(dm < SwitchDistance.to_other_pedestrian, mask_dm), 1, 0
         )
         n_intersections = jnp.maximum(1, intersection.sum(axis=1))
 
         fv_directions = estimate_mean_direction_among_neighbours(
-            intersection, normed_efv_directions, n_intersections, noise_coef, key
+            intersection, normed_directions, n_intersections, noise_coef, key
         )
-
         return fv_directions.T
 
     # Record new directions of following and viscek pedestrians (based on Viscek model)
     new_directions = jnp.where(
-        updated_particles_cond, get_new_directions() * step_size, pedestrians.positions
+        updated_particles_cond,
+        get_new_directions(
+            directions=pedestrians.directions,
+            positions=pedestrians.positions,
+            cond_updated=updated_particles_cond,
+            cond_moving=moving_paricles_cond,
+            key=key,
+        )
+        * step_size,
+        pedestrians.directions,
     )
 
     # Update the pedestrians variable
@@ -182,25 +147,20 @@ def get_new_direction_based_on_viscek_model(
 def get_new_direction_based_on_leaders_enslaving(
     pedestrians: PedestriansState, agent: AgentState, following_cond: jax.Array
 ) -> PedestriansState:
-    # f_directions = pedestrians.directions[following_cond]
-    # l_directions = agent.direction
-    # new_f_directions = (
-    #     agent.enslaving_degree * l_directions
-    #     + (1.0 - agent.enslaving_degree) * f_directions
-    # )
-    # new_directions = pedestrians.directions.at[following_cond].set(new_f_directions)
-    
+
     def get_new_directions(directions, leaders_direction, enslaving_degree):
         return (
-        enslaving_degree * leaders_direction
-        + (1.0 - enslaving_degree) * directions
-    )
+            enslaving_degree * leaders_direction + (1.0 - enslaving_degree) * directions
+        )
+
     new_directions = jnp.where(
         following_cond,
-        get_new_directions(pedestrians.directions, agent.direction, agent.enslaving_degree),
+        get_new_directions(
+            pedestrians.directions, agent.direction, agent.enslaving_degree
+        ),
         pedestrians.directions,
     )
-    
+
     # Update the pedestrians variable
     new_pedestrians = pedestrians.replace(directions=new_directions)
     return new_pedestrians
@@ -237,6 +197,7 @@ def pedestrians_step(
     noise_coef: float,
     width: float,  # width of simulation area
     height: float,  # height of simulation area
+    eps: float,
     num_pedestrians: int,
     init_reward_each_step: float,
     is_new_exiting_reward: bool,
@@ -292,8 +253,15 @@ def pedestrians_step(
     )
 
     # Record new positions of exiting, following and viscek pedestrians
+    directions = pedestrians.directions
+    normed_directions = (
+        directions.T / (jnp.linalg.norm(directions, axis=1) + eps)
+    ).T  # TODO can we remove norm here?
+    scaled_direction = normed_directions * step_size
     pedestrians_04 = pedestrians_03.replace(
-        positions=jnp.where(efv, pedestrians.positions + pedestrians.directions, pedestrians.positions)
+        positions=jnp.where(
+            efv, pedestrians.positions + scaled_direction, pedestrians.positions
+        )
     )
 
     pedestrians_05 = handle_pedestrians_wall_collisions(pedestrians_04, width, height)

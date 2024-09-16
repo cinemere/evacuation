@@ -139,6 +139,7 @@ class Environment(Generic[EnvParamsT]):  # (abc.ABC, Generic[EnvParamsT]):
             noise_coef=params.noise_coef,
             width=params.width,
             height=params.height,
+            eps=params.eps,
             num_pedestrians=params.number_of_pedestrians,
             init_reward_each_step=params.init_reward_each_step,
             is_new_exiting_reward=params.is_new_exiting_reward,

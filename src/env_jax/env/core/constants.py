@@ -15,7 +15,7 @@ class SwitchDistance(struct.PyTreeNode):
     to_exit: float = struct.field(pytree_node=False, default=0.4)
     "Radius of exit zone."
 
-    to_escape: float = struct.field(pytree_node=False, default=0.01)
+    to_escape: float = struct.field(pytree_node=False, default=0.02)
     "Radius of escape zone."
 
 
