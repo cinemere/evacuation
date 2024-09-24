@@ -8,7 +8,7 @@ import numpy as np
 from flax import struct
 from typing_extensions import TypeAlias
 
-from .core.constants import EXIT, Status
+from .core.constants import EXIT, Status, PEDESTRIANS_INIT_POSITIONS
 from .core.rewards import estimate_agent_reward
 from .core.step import agent_step, pedestrians_step
 from .core.utils import update_statuses
@@ -17,7 +17,6 @@ from .params import EnvParams, EnvParamsT
 from .types import (
     AgentState,
     EnvCarryT,
-    IntOrArray,
     PedestriansState,
     State,
     StepType,
@@ -54,14 +53,14 @@ class Environment(Generic[EnvParamsT]):  # (abc.ABC, Generic[EnvParamsT]):
         pedestrians_positions = jax.random.uniform(
             pedestrians_positions_key,
             shape=(params.number_of_pedestrians, 2),
-            minval=-1,
-            maxval=1,
+            minval=PEDESTRIANS_INIT_POSITIONS[0],
+            maxval=PEDESTRIANS_INIT_POSITIONS[1],
         )
         pedestrians_directions = jax.random.uniform(
             pedestrians_direction_key,
             shape=(params.number_of_pedestrians, 2),
-            minval=-1,
-            maxval=1,
+            minval=PEDESTRIANS_INIT_POSITIONS[0] * params.step_size,
+            maxval=PEDESTRIANS_INIT_POSITIONS[0] * params.step_size,
         )
         statuses = jnp.zeros((params.number_of_pedestrians), dtype=jnp.uint8)
         statuses = update_statuses(statuses, pedestrians_positions, agent.position)
