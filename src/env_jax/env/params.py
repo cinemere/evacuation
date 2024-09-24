@@ -58,7 +58,7 @@ class EnvParams(struct.PyTreeNode):
     """constant reward given on each step of agent. 
     Typical expected values: 0, -1."""
 
-    # # ---- Timing in the environment ----
+    # ---- Timing in the environment ----
 
     max_timesteps: int = struct.field(pytree_node=False, default=2_000)
     """max timesteps before truncation"""
@@ -68,6 +68,37 @@ class EnvParams(struct.PyTreeNode):
 
     # n_timesteps: int = 0
     # """number of timesteps already done (for pretrained models)"""
+
+    # ---- Observation params ----
+    
+    # num_obs_stacks: int = struct.field(pytree_node=False, default=1)
+    # """number of times to stack observation"""
+
+    # positions: Literal['abs', 'rel', 'grav'] = 'abs'
+    # """positions: 
+    #     - 'abs': absolute coordinates
+    #     - 'rel': relative coordinates
+    #     - 'grav': gradient gravity potential encoding (GravityEncoding)
+    # """
+    
+    # statuses: Literal['no', 'ohe', 'cat'] = 'no'
+    # """add pedestrians statuses to obeservation as one-hot-encoded columns.
+    # NOTE: this value has no effect when `positions`='grad' is selected.
+    # """
+    
+    # type: Literal['Dict', 'Box'] = 'Dict'
+    # """concatenate Dict-type observation to a Box-type observation
+    # (with added statuses to the observation)"""
+
+    # # ---- GravityEncoding params ----
+    
+    # alpha: float = 3
+    # """alpha parameter of GravityEncoding. The value of alpha 
+    # determines the strength and shape of the potential function. 
+    # Higher value results in a stronger repulsion between the agent 
+    # and the pedestrians, a lower value results in a weaker repulsion.
+    # Typical expected values vary from 1 to 5."""
+
 
     # # ---- Logging params ----
 

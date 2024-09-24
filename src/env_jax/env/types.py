@@ -29,7 +29,7 @@ class PedestriansState(struct.PyTreeNode):
 # 	# what is it I don't understand :(
 # 	...
 
-IntOrArray: TypeAlias = Union[int, jax.Array]
+# IntOrArray: TypeAlias = Union[int, jax.Array]
 EnvCarryT = TypeVar("EnvCarryT")
 
 class State(struct.PyTreeNode, Generic[EnvCarryT]):

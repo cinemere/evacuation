@@ -4,6 +4,8 @@ from flax import struct
 EXIT = jnp.asarray((0.0, -1.0), dtype=jnp.float32)
 "Exit position."
 
+PEDESTRIANS_INIT_POSITIONS = jnp.asarray((-1.0, 1.0), dtype=jnp.float32)
+"X and Y low and high for uniform distribution."
 
 class SwitchDistance(struct.PyTreeNode):
     to_leader: float = struct.field(pytree_node=False, default=0.2)

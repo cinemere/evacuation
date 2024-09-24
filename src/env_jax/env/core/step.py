@@ -3,7 +3,7 @@ import jax.numpy as jnp
 import jax
 from functools import reduce
 
-from ..types import AgentState, PedestriansState, IntOrArray
+from ..types import AgentState, PedestriansState
 from .constants import Status, EXIT, SwitchDistance
 from .utils import update_statuses, estimate_mean_direction_among_neighbours
 from .rewards import estimate_intrinsic_reward, estimate_status_reward
