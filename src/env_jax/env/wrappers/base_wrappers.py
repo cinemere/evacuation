@@ -1,4 +1,4 @@
-from typing import Any
+from typing import Any, Dict, Tuple
 
 import jax
 
@@ -29,10 +29,6 @@ class Wrapper(Environment[EnvParamsT]):
     def step(
         self, params: EnvParamsT, timestep: TimeStep, action: jax.Array
     ) -> TimeStep:
-        print("Type of env_params:", type(params))
-        print("Type of timestep:", type(timestep))
-        print("Type of action:", type(action))
-
         return self._env.step(params, timestep, action)
 
     def render(self, params: EnvParamsT, timestep: TimeStep):
@@ -41,7 +37,7 @@ class Wrapper(Environment[EnvParamsT]):
 
 class ObservationWrapper(Wrapper):
     def reset(self, params: Any, key: jax.Array) -> TimeStep:
-        timestep = super().reset(params, key)
+        timestep = self._env.reset(params, key)
         new_observation = self.observation(params, timestep.state)
         new_timestep = timestep.replace(observation=new_observation)
         return new_timestep
@@ -49,10 +45,22 @@ class ObservationWrapper(Wrapper):
     def step(
         self, params: Any, timestep: TimeStep, action: jax.Array
     ) -> TimeStep:
-        timestep = super().step(params, timestep, action)
+        # timestep = super().step(params, timestep, action)
+        timestep = self._env.step(params, timestep, action)
         new_observation = self.observation(params, timestep.state)
         new_timestep = timestep.replace(observation=new_observation)
         return new_timestep
+    
+    def observation_shape(self, params: EnvParamsT) -> int | Dict[str, Any]:
+        """Returns the shape of modified observation.
+
+        Args:
+            params (Any): parameters of the environment
+
+        Returns:
+            int | Dict[str, Any]: the shape of modified observation
+        """
+        raise NotImplementedError
 
     def observation(self, params: EnvParamsT, state: State) -> jax.Array:
         """Returns a modified observation.
@@ -63,4 +71,4 @@ class ObservationWrapper(Wrapper):
         Returns:
             The modified observation
         """
-        raise NotImplementedError
+        return self._env._get_observation(params, state)
