@@ -1,4 +1,4 @@
-from typing import Any, Dict, Tuple
+from typing import Any, Dict
 
 import jax
 
@@ -20,6 +20,9 @@ class Wrapper(Environment[EnvParamsT]):
     def observation_shape(self, params: EnvParamsT) -> int | dict[str, Any]:
         return self._env.observation_shape(params)
 
+    def observation(self, params: EnvParamsT, state: State) -> jax.Array:
+        return self._env.observation(params, state)
+    
     def _generate_problem(self, params: EnvParamsT, key: jax.Array) -> State:
         return self._env._generate_problem(params, key)
 
@@ -38,16 +41,15 @@ class Wrapper(Environment[EnvParamsT]):
 class ObservationWrapper(Wrapper):
     def reset(self, params: Any, key: jax.Array) -> TimeStep:
         timestep = self._env.reset(params, key)
-        new_observation = self.observation(params, timestep.state)
+        new_observation = self.observation(params, timestep)
         new_timestep = timestep.replace(observation=new_observation)
         return new_timestep
 
     def step(
         self, params: Any, timestep: TimeStep, action: jax.Array
     ) -> TimeStep:
-        # timestep = super().step(params, timestep, action)
         timestep = self._env.step(params, timestep, action)
-        new_observation = self.observation(params, timestep.state)
+        new_observation = self.observation(params, timestep)
         new_timestep = timestep.replace(observation=new_observation)
         return new_timestep
     
@@ -62,7 +64,7 @@ class ObservationWrapper(Wrapper):
         """
         raise NotImplementedError
 
-    def observation(self, params: EnvParamsT, state: State) -> jax.Array:
+    def observation(self, params: EnvParamsT, timestep: TimeStep) -> jax.Array:
         """Returns a modified observation.
 
         Args:
@@ -71,4 +73,4 @@ class ObservationWrapper(Wrapper):
         Returns:
             The modified observation
         """
-        return self._env._get_observation(params, state)
+        raise NotImplementedError

@@ -5,6 +5,9 @@ from .observation_wrappers import (
     RelativePosition,
     PedestriansStatusesOhe,
     PedestriansStatusesCat,
+    MatrixObs,
+    MatrixObsOheStates,
+    MatrixObsCatStates,
 )
 
 
@@ -14,4 +17,7 @@ __all__ = [
     "RelativePosition",
     "PedestriansStatusesOhe",
     "PedestriansStatusesCat",
+    "MatrixObs",
+    "MatrixObsOheStates",
+    "MatrixObsCatStates",
 ]

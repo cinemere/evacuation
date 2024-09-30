@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Any, Generic, Optional, TypeVar
+from typing import Any, Generic, Optional, TypeVar, Tuple, Dict
 
 import jax
 import jax.numpy as jnp
@@ -23,6 +23,7 @@ from .types import (
     TimeStep,
 )
 
+
 class Environment(Generic[EnvParamsT]):  # (abc.ABC, Generic[EnvParamsT]):
     # @abc.abstractmethod
     def default_params(self, **kwargs: Any) -> EnvParamsT:
@@ -30,11 +31,12 @@ class Environment(Generic[EnvParamsT]):  # (abc.ABC, Generic[EnvParamsT]):
         params = params.replace(**kwargs)
         return params
 
-    def observation_shape(
-        self, params: EnvParamsT
-    ) -> int:  # -> tuple[int, int, int] | dict[str, Any]:
-        # TODO should be dependent on the selected observation wrapper
-        return params.number_of_pedestrians * 2
+    def observation_shape(self, params: EnvParamsT) -> Tuple[int] | Dict[str, Any]:
+        return {
+            "agent_position": (2,),
+            "pedestrians_position": (params.number_of_pedestrians, 2),
+            "exit_position": (2,),
+        }
 
     # @abc.abstractmethod
     def _generate_problem(self, params: EnvParamsT, key: jax.Array) -> State[EnvCarryT]:
@@ -81,7 +83,7 @@ class Environment(Generic[EnvParamsT]):  # (abc.ABC, Generic[EnvParamsT]):
         return state
 
     # @abc.abstractmethod
-    def _get_observation(self, params: EnvParamsT, state: State) -> jax.Array:
+    def observation(self, params: EnvParamsT, state: State) -> jax.Array:
         obs = {}
         obs["agent_position"] = state.agent.position
         obs["pedestrians_position"] = state.pedestrians.positions
@@ -96,16 +98,13 @@ class Environment(Generic[EnvParamsT]):  # (abc.ABC, Generic[EnvParamsT]):
             step_type=StepType.FIRST,
             reward=jnp.asarray(0.0),
             discount=jnp.asarray(1.0),
-            observation=self._get_observation(params, state),
+            observation=self.observation(params, state),
         )
         return timestep
 
     # Why timestep + state at once, and not like in Jumanji? # To be able to do autoresets in gym and envpools styles
     def step(
-        self,
-        params: EnvParamsT,
-        timestep: TimeStep[EnvCarryT],
-        action: jax.Array
+        self, params: EnvParamsT, timestep: TimeStep[EnvCarryT], action: jax.Array
     ) -> TimeStep[EnvCarryT]:
 
         state_key, pedestrians_step_key = jax.random.split(timestep.state.key, num=2)
@@ -157,11 +156,11 @@ class Environment(Generic[EnvParamsT]):  # (abc.ABC, Generic[EnvParamsT]):
             pedestrians=new_pedestrians,
             agent=new_agent,
             step_num=timestep.state.step_num + 1,
-            key=state_key
+            key=state_key,
         )
 
         # Record observation
-        new_observation = self._get_observation(params, new_state)
+        new_observation = self.observation(params, new_state)
 
         # assert params.max_steps is not None
         truncated = jnp.equal(new_state.step_num, params.max_timesteps)
@@ -185,10 +184,9 @@ class Environment(Generic[EnvParamsT]):  # (abc.ABC, Generic[EnvParamsT]):
         self, params: EnvParamsT, timestep: TimeStep[EnvCarryT]
     ) -> np.ndarray | str:
         if params.render_mode == "plot":
-           return render_plot(params, timestep)
+            return render_plot(params, timestep)
         # elif params.render_mode == "rich_text":
         #    return text_render(timestep.state.grid, timestep.state.agent)
         # else:
         #    raise RuntimeError("Unknown render mode. Should be one of: ['rgb_array', 'rich_text']")
         ...
-
