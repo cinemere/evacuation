@@ -4,10 +4,12 @@ from typing import Any, Dict, Tuple
 
 import jax
 import jax.numpy as jnp
+import jax.lax as lax
+
 
 from ..env import Environment
 from ..params import EnvParamsT
-from ..core.constants import PEDESTRIANS_INIT_POSITIONS
+from ..core.constants import PEDESTRIANS_INIT_POSITIONS, Status
 from ..types import State, TimeStep
 from .base_wrappers import ObservationWrapper
 
@@ -150,3 +152,78 @@ class MatrixObsCatStates(PedestriansStatusesCat):
         stat = jnp.hstack((jnp.asarray([0, 1], base_obs["pedestrians_statuses"])))
         vec = jnp.hstack((pos, jnp.expand_dims(stat, 1))).astype(jnp.float32)
         return vec
+
+
+def grad_potential_pedestrians(
+    agent_position: jnp.ndarray,
+    pedestrians_positions: jnp.ndarray,
+    status_viscek: jnp.ndarray,
+    alpha: float,
+    eps: float,
+) -> jnp.ndarray:
+    selected_positions = jnp.where(jnp.expand_dims(status_viscek, 1), pedestrians_positions, 0)
+    R = jnp.expand_dims(agent_position, 0) - selected_positions
+
+    def fn(R):
+        norm = jnp.expand_dims(jnp.linalg.norm(R, axis=1), 1)
+        grad = -alpha / (norm ** (alpha + 2) + eps) * R
+        grad = grad.sum(axis=0)
+        return grad
+
+    grad = lax.cond(len(R) != 0, lambda: fn(R), lambda: jnp.zeros(2))
+    return grad
+
+
+def grad_potential_exit(
+    agent_position: jnp.ndarray,
+    num_followers: int,
+    exit_position: jnp.ndarray,
+    alpha: float,
+    eps: float,
+) -> jnp.ndarray:
+    R = agent_position - exit_position
+    norm = jnp.linalg.norm(R)
+    grad = -alpha / (norm ** (alpha + 2) + eps) * R
+    return grad * num_followers
+
+
+class GravityEncoding(ObservationWrapper):
+    def observation_shape(self, params: EnvParamsT) -> Tuple[int] | Dict[str, Any]:
+        return {
+            "agent_position": (2,),
+            "grad_potential_pedestrians": (2,),
+            "grad_potential_exit": (2,),
+        }
+
+    def observation(self, params: EnvParamsT, timestep: TimeStep) -> jax.Array:
+
+        base_obs = timestep.observation
+
+        pedestrians_positions = base_obs.pop("pedestrians_position")
+        exit_position = base_obs.pop("exit_position")
+        agent_position = base_obs["agent_position"]
+
+        statuses = timestep.state.pedestrians.statuses
+        num_followers = sum(statuses == Status.FOLLOWER).astype(jnp.float32)
+        status_viscek = statuses == Status.VISCEK
+
+        extended_obs = {
+            **base_obs,
+            **{
+                "grad_potential_pedestrians": grad_potential_pedestrians(
+                    agent_position=agent_position,
+                    pedestrians_positions=pedestrians_positions,
+                    status_viscek=status_viscek,
+                    alpha=params.alpha,
+                    eps=params.eps,
+                ),
+                "grad_potential_exit": grad_potential_exit(
+                    agent_position=agent_position,
+                    exit_position=exit_position,
+                    num_followers=num_followers,
+                    alpha=params.alpha,
+                    eps=params.eps,
+                ),
+            },
+        }
+        return extended_obs

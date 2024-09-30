@@ -8,6 +8,7 @@ from .observation_wrappers import (
     MatrixObs,
     MatrixObsOheStates,
     MatrixObsCatStates,
+    GravityEncoding,
 )
 
 
@@ -20,4 +21,5 @@ __all__ = [
     "MatrixObs",
     "MatrixObsOheStates",
     "MatrixObsCatStates",
+    "GravityEncoding",
 ]

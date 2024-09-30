@@ -90,15 +90,14 @@ class EnvParams(struct.PyTreeNode):
     # """concatenate Dict-type observation to a Box-type observation
     # (with added statuses to the observation)"""
 
-    # # ---- GravityEncoding params ----
+    # ---- GravityEncoding params ----
     
-    # alpha: float = 3
-    # """alpha parameter of GravityEncoding. The value of alpha 
-    # determines the strength and shape of the potential function. 
-    # Higher value results in a stronger repulsion between the agent 
-    # and the pedestrians, a lower value results in a weaker repulsion.
-    # Typical expected values vary from 1 to 5."""
-
+    alpha: float = 3
+    """alpha parameter of GravityEncoding. The value of alpha 
+    determines the strength and shape of the potential function. 
+    Higher value results in a stronger repulsion between the agent 
+    and the pedestrians, a lower value results in a weaker repulsion.
+    Typical expected values vary from 1 to 5."""
 
     # # ---- Logging params ----
 
