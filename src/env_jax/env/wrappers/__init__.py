@@ -1,6 +1,6 @@
 """Wrappers for Evacuation environment."""
 
-from .base_wrappers import Wrapper, ObservationWrapper
+from .base_wrappers import Wrapper, ObservationWrapper, ObservationWrapper2
 from .observation_wrappers import (
     RelativePosition,
     PedestriansStatusesOhe,
@@ -15,6 +15,7 @@ from .observation_wrappers import (
 __all__ = [
     "Wrapper",
     "ObservationWrapper",
+    "ObservationWrapper2",
     "RelativePosition",
     "PedestriansStatusesOhe",
     "PedestriansStatusesCat",

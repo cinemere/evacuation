@@ -74,3 +74,39 @@ class ObservationWrapper(Wrapper):
             The modified observation
         """
         raise NotImplementedError
+
+
+class ObservationWrapper2(Wrapper):
+    def reset(self, params: Any, key: jax.Array) -> TimeStep:
+        timestep = self._env.reset(params, key)
+        new_timestep = self.update_observation(params, timestep)
+        return new_timestep
+
+    def step(
+        self, params: Any, timestep: TimeStep, action: jax.Array
+    ) -> TimeStep:
+        timestep = self._env.step(params, timestep, action)
+        new_timestep = self.update_observation(params, timestep)
+        return new_timestep
+    
+    def observation_shape(self, params: EnvParamsT) -> int | Dict[str, Any]:
+        """Returns the shape of modified observation.
+
+        Args:
+            params (Any): parameters of the environment
+
+        Returns:
+            int | Dict[str, Any]: the shape of modified observation
+        """
+        raise NotImplementedError
+
+    def update_observation(self, params: EnvParamsT, timestep: TimeStep) -> TimeStep:
+        """Returns a modified observation.
+
+        Args:
+            observation: The :attr:`env` observation
+
+        Returns:
+            The modified observation
+        """
+        raise NotImplementedError

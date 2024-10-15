@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import TypeVar
+from typing import TypeVar, Literal
 
 from flax import struct
 
@@ -74,25 +74,25 @@ class EnvParams(struct.PyTreeNode):
     # num_obs_stacks: int = struct.field(pytree_node=False, default=1)
     # """number of times to stack observation"""
 
-    # positions: Literal['abs', 'rel', 'grav'] = 'abs'
-    # """positions: 
-    #     - 'abs': absolute coordinates
-    #     - 'rel': relative coordinates
-    #     - 'grav': gradient gravity potential encoding (GravityEncoding)
-    # """
+    positions: Literal['abs', 'rel', 'grav'] = struct.field(pytree_node=False, default='abs')
+    """positions: 
+        - 'abs': absolute coordinates
+        - 'rel': relative coordinates
+        - 'grav': gradient gravity potential encoding (GravityEncoding)
+    """
     
-    # statuses: Literal['no', 'ohe', 'cat'] = 'no'
-    # """add pedestrians statuses to obeservation as one-hot-encoded columns.
-    # NOTE: this value has no effect when `positions`='grad' is selected.
-    # """
+    statuses: Literal['no', 'ohe', 'cat'] = struct.field(pytree_node=False, default='no')
+    """add pedestrians statuses to obeservation as one-hot-encoded columns.
+    NOTE: this value has no effect when `positions`='grad' is selected.
+    """
     
-    # type: Literal['Dict', 'Box'] = 'Dict'
-    # """concatenate Dict-type observation to a Box-type observation
-    # (with added statuses to the observation)"""
+    type: Literal['Dict', 'Box'] = struct.field(pytree_node=False, default='Dict')
+    """concatenate Dict-type observation to a Box-type observation
+    (with added statuses to the observation)"""
 
     # ---- GravityEncoding params ----
     
-    alpha: float = 3
+    alpha: float = struct.field(pytree_node=False, default=3)
     """alpha parameter of GravityEncoding. The value of alpha 
     determines the strength and shape of the potential function. 
     Higher value results in a stronger repulsion between the agent 

@@ -9,3 +9,4 @@ stable-baselines3
 wandb
 tyro
 jax[cuda12]
+distrax

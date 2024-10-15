@@ -39,3 +39,24 @@ ENV
         - n_episodes CHANGING
         - n_timesteps CHANGING
 ```
+
+## timestep
+
+```
+Timestep:
+    - state:
+        - key
+        - step_num
+        - pedestrians
+            - positions
+            - directions
+            - statuses
+        - agent
+            - enslaving_degree
+            - position
+            - direction
+    - step_type: FIRST | MID | LAST
+    - reward: num
+    - discount: num
+    - observation: arr | dict
+```
