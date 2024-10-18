@@ -37,6 +37,10 @@ class Environment(Generic[EnvParamsT]):  # (abc.ABC, Generic[EnvParamsT]):
             "pedestrians_position": (params.number_of_pedestrians, 2),
             "exit_position": (2,),
         }
+    
+    @property
+    def action_dim(self) -> int:
+        return 2
 
     # @abc.abstractmethod
     def _generate_problem(self, params: EnvParamsT, key: jax.Array) -> State[EnvCarryT]:
