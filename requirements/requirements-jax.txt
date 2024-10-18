@@ -10,3 +10,4 @@ wandb
 tyro
 jax[cuda12]
 distrax
+flax

@@ -1,7 +1,6 @@
 # %%
-import sys
-
-sys.path.append("/home/cinemere/work/repo/evacuation/src")
+# import sys; sys.path.append("/home/cinemere/work/repo/evacuation/src")
+import sys; sys.path.append("/Users/Klepach/work/repo/tmp/evacuation/src")
 
 import jax
 import jax.numpy as jnp

@@ -14,7 +14,6 @@ from .base_wrappers import Wrapper, ObservationWrapper, ObservationWrapper2
 #     TODO NormalizeVecObservation,
 #     TODO NormalizeVecReward,
 
-
 @struct.dataclass
 class TimeStepWithLog:
     timestep: TimeStep
@@ -67,7 +66,7 @@ class VecEnv(Wrapper):
 
 
 @struct.dataclass
-class RunningMeanStd:
+class TimeStepWithRMS:  # RMS -- Running Mean Std
     mean: jnp.ndarray
     var: jnp.ndarray
     count: float  # 1e-4
@@ -91,7 +90,7 @@ def update_mean_var_count_from_moments(
     return new_mean, new_var, new_count
 
 
-def update_rms_from_batch(rms: RunningMeanStd, batch: jnp.ndarray):
+def update_rms_from_batch(rms: TimeStepWithRMS, batch: jnp.ndarray):
     batch_mean = jnp.mean(batch, axis=0)
     batch_val = jnp.var(batch, axis=0)
     batch_count = batch.shape[0]
@@ -107,8 +106,10 @@ def update_rms_from_batch(rms: RunningMeanStd, batch: jnp.ndarray):
     return new_rms
 
 
-class NormalizeVecObservation(ObservationWrapper2):
-    
+class NormalizeVecObservation(Wrapper):
+    def __init__(self, env: Environment[EnvParamsT]):
+        self._env = env
+
     def observation_shape(self, params: EnvParamsT) -> int | Dict[str, Any]:
         return self._env.observation_shape(params)
     
