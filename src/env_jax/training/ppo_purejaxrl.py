@@ -1,6 +1,8 @@
 # %%
 from __future__ import annotations
 
+from dataclasses import dataclass
+from typing import Optional
 import jax
 import jax.numpy as jnp
 import flax.linen as nn
@@ -12,6 +14,28 @@ from flax.linen.initializers import constant, orthogonal
 from typing import Sequence, NamedTuple, Any
 from flax.training.train_state import TrainState
 import distrax
+
+# %%
+# Adapted from PureJaxRL implementation and minigrid baselines, source:
+# https://github.com/lupuandr/explainable-policies/blob/50acbd777dc7c6d6b8b7255cd1249e81715bcb54/purejaxrl/ppo_rnn.py#L4
+# https://github.com/lcswillems/rl-starter-files/blob/master/model.py
+import time
+from dataclasses import asdict, dataclass
+from functools import partial
+from typing import Optional
+
+import jax
+import jax.numpy as jnp
+import jax.tree_util as jtu
+import optax
+import pyrallis
+import wandb
+from flax.jax_utils import replicate, unreplicate
+from flax.training.train_state import TrainState
+
+# this will be default in new jax versions anyway
+jax.config.update("jax_threefry_partitionable", True)
+
 
 # %%
 import sys
@@ -26,6 +50,19 @@ from env_jax.env.wrappers.gym_wrappers import GymAutoResetWrapper
 
 #     NormalizeVecObservation,
 #     NormalizeVecReward,
+
+from dataclasses import asdict
+
+from env_jax.env.env import Environment, EnvParams
+
+from env_jax.env.wrappers import (
+    RelativePosition,
+    PedestriansStatusesCat,
+    PedestriansStatusesOhe,
+    MatrixObsOheStates,
+    GravityEncoding,
+    FlattenObservation,
+)
 
 
 # %%
@@ -266,36 +303,26 @@ def rollout(
 
 
 # %%
-from dataclasses import asdict
-
-from env_jax.env.env import Environment, EnvParams
-
-from env_jax.env.wrappers import (
-    RelativePosition,
-    PedestriansStatusesCat,
-    PedestriansStatusesOhe,
-    MatrixObsOheStates,
-    GravityEncoding,
-)
 
 
-def init_env(config):
-    if config["ENV_NAME"] == "classic":
+def init_env(env_name: str):
+    if env_name == "evacuation-classic":
         env = Environment()
         env_params = EnvParams()
         env_params = env.default_params(**asdict(env_params))
 
     env = GymAutoResetWrapper(env)
 
-    env = LogWrapper(env)
     env = ClipAction(env)
-    env = VecEnv(env)
+    env = LogWrapper(env)
+    env = FlattenObservation(env)
+    # env = VecEnv(env)  TODO keep an eye on here
 
     return env, env_params
 
 
 # %%
-def make_states(config):
+def make_states(config: TrainConfig):
     # for learning rate scheduling
     def linear_schedule(count):
         frac = (
@@ -306,59 +333,51 @@ def make_states(config):
         return config.lr * frac
 
     # setup environment
-    env, env_params = init_env(config)
+    env, env_params = init_env(config.env_id)
 
     # setup training state
     rng = jax.random.key(config.seed)
     rng, _rng = jax.random.split(rng)
 
     network = ActorCritic(
-        action_dim=...,
+        action_dim=env.action_dim,
         activation="tanh",
         hidden_dim=256,
     )
 
     # [batch_size, seq_len, ...]
-    shapes = env.observation_shape(env_params)
+    # shapes = env.observation_shape(env_params)
 
-    init_obs = {
-        "obs_img": jnp.zeros((config.num_envs_per_device, 1, *shapes["img"])),
-        "obs_dir": jnp.zeros((config.num_envs_per_device, 1, shapes["direction"])),
-        "prev_action": jnp.zeros((config.num_envs_per_device, 1), dtype=jnp.int32),
-        "prev_reward": jnp.zeros((config.num_envs_per_device, 1)),
-    }
-    init_hstate = network.initialize_carry(batch_size=config.num_envs_per_device)
+    init_obs = jnp.zeros(
+        (config.num_env_per_device, 1, *env.observation_shape(env_params))
+    )
+    # init_obs = {key : jnp.zeros((config.num_env_per_dievice, 1, *shapes[key])) for key, value in shapes.items()}
+    # init_obs["prev_action"] = jnp.zeros((config.num_envs_per_device, env.action_dim))
+    # init_obs["prev_reward"] = jnp.zeros((config.num_envs_per_device, env.action_dim))
+    # init_obs = {
+    #     "obs_img": jnp.zeros((config.num_envs_per_device, 1, *shapes["img"])),
+    #     "obs_dir": jnp.zeros((config.num_envs_per_device, 1, shapes["direction"])),
+    #     "prev_action": jnp.zeros((config.num_envs_per_device, 1), dtype=jnp.int32),
+    #     "prev_reward": jnp.zeros((config.num_envs_per_device, 1)),
+    # }
+    # init_hstate = network.initialize_carry(batch_size=config.num_envs_per_device)
 
-    network_params = network.init(_rng, init_obs, init_hstate)
+    network_params = network.init(_rng, init_obs)
     tx = optax.chain(
         optax.clip_by_global_norm(config.max_grad_norm),
         optax.inject_hyperparams(optax.adam)(
-            learning_rate=linear_schedule, eps=1e-8
-        ),  # eps=1e-5
+            learning_rate=linear_schedule, eps=1e-5
+        ), # eps=1e-8
     )
     train_state = TrainState.create(
         apply_fn=network.apply, params=network_params, tx=tx
     )
 
-    return rng, env, env_params, init_hstate, train_state
+    return rng, env, env_params, train_state
 
 
 # %%
 def make_train(config):
-    config["NUM_UPDATES"] = (
-        config["TOTAL_TIMESTEPS"] // config["NUM_STEPS"] // config["NUM_ENVS"]
-    )
-    config["MINIBATCH_SIZE"] = (
-        config["NUM_ENVS"] * config["NUM_STEPS"] // config["NUM_MINIBATCHES"]
-    )
-
-    def linear_schedule(count):
-        frac = (
-            1.0
-            - (count // (config["NUM_MINIBATCHES"] * config["UPDATE_EPOCHS"]))
-            / config["NUM_UPDATES"]
-        )
-        return config["LR"] * frac
 
     # -------
     # env, env_params = BraxGymnaxWrapper(config["ENV_NAME"]), None
@@ -372,34 +391,27 @@ def make_train(config):
     # -------
     env, env_params = init_env(config)
 
-    def train(rng):
-        # INIT NETWORK
-        network = ActorCritic(
-            env.action_space(env_params).shape[0], activation=config["ACTIVATION"]
-        )
+    @partial(jax.pmap, axis_name="devices")
+    def train(rng: jax.Array, train_state: TrainState, init_hstate: jax.Array):
+
+        # INIT ENV
         rng, _rng = jax.random.split(rng)
-        init_x = jnp.zeros(env.observation_space(env_params).shape)
-        network_params = network.init(_rng, init_x)
-        if config["ANNEAL_LR"]:
-            tx = optax.chain(
-                optax.clip_by_global_norm(config["MAX_GRAD_NORM"]),
-                optax.adam(learning_rate=linear_schedule, eps=1e-5),
-            )
-        else:
-            tx = optax.chain(
-                optax.clip_by_global_norm(config["MAX_GRAD_NORM"]),
-                optax.adam(config["LR"], eps=1e-5),
-            )
-        train_state = TrainState.create(
-            apply_fn=network.apply,
-            params=network_params,
-            tx=tx,
-        )
+        reset_rng = jax.random.split(_rng, config.num_envs_per_device)
+
+        timestep = jax.vmap(env.reset, in_axes=(None, 0))(env_params, reset_rng)
+        prev_action = jnp.zeros(config.num_envs_per_device, env.action_dim)
+        prev_reward = jnp.zeros(config.num_envs_per_device)
 
         # INIT ENV
         rng, _rng = jax.random.split(rng)
         reset_rng = jax.random.split(_rng, config["NUM_ENVS"])
         obsv, env_state = env.reset(reset_rng, env_params)
+
+        # ++++++++++++++++++++++++++++++++++++++++++++++++++++++
+        # ++++++++++++++++++++++++++++++++++++++++++++++++++++++
+        # +++++++++++++++++YOU-STOPPED-HERE+++++++++++++++++++++
+        # ++++++++++++++++++++++++++++++++++++++++++++++++++++++
+        # ++++++++++++++++++++++++++++++++++++++++++++++++++++++
 
         # TRAIN LOOP
         def _update_step(runner_state, unused):
@@ -571,41 +583,137 @@ def make_train(config):
     return train
 
 
-if __name__ == "__main__":
-    config = {
-        "LR": 3e-4,
+@dataclass
+class TrainConfig:
+    project: str = "evacuation"
+    group: str = "default"
+    name: str = "ppo-classic"
+    env_id: str = "evacuation-vanila"
+    # agent (probably we'd better use separate encoder for different instances of obseravation)
+    hidden_dim: int = 256
+    # training
+    num_envs: int = 2048
+    num_steps: int = 10  # 16  # ???
+    update_epochs: int = 4  # ???
+    num_minibatches: int = 32
+    total_timesteps: int = 50_000_000
+    lr: float = 0.0003
+    clip_eps: float = 0.2
+    gamma: float = 0.99
+    gae_lambda: float = 0.95
+    ent_coef: float = 0.01
+    vf_coef: float = 0.5
+    max_grad_norm: float = 0.5
+    eval_episodes: int = 80
+    activation: str = "tanh"
+    anneal_lr: bool = False
+    normalize_env: bool = False
+    seed: int = 42
 
-        "NUM_ENVS": 2048,
-        "NUM_STEPS": 10,
-        "TOTAL_TIMESTEPS": 5e7,
-        "UPDATE_EPOCHS": 4,
-        "NUM_MINIBATCHES": 32,
-        
-        "GAMMA": 0.99,
-        "GAE_LAMBDA": 0.95,
-        "CLIP_EPS": 0.2,
-        "ENT_COEF": 0.0,
-        "VF_COEF": 0.5,
-        "MAX_GRAD_NORM": 0.5,
-        "ACTIVATION": "tanh",
-        "ENV_NAME": "classic",
-        "ANNEAL_LR": False,
-        "NORMALIZE_ENV": True,
-        "DEBUG": True,
-    }
-    num_devices = jax.local_device_count()
-    # splitting computation across all available devices
-    config["NUM_ENVS_PER_DEVICE"] = config["NUM_ENVS"] // num_devices
-    config["TOTAL_TIMESTEPS_PER_DEVICE"] = config["TOTAL_TIMESTEPS"] // num_devices
-    config["EVAL_EPISODES_PER_DEVICE"] = config["EVAL_EPISODES"] // num_devices
-    assert config["NUM_ENVS"] % num_devices == 0
-    config["NUM_UPDATES"] = (
-        config["TOTAL_TIMESTEPS_PER_DEVICE"]
-        // config["NUM_STEPS"]
-        // config["NUM_ENVS_PER_DEVICE"]
+    def __post_init__(self):
+        num_devices = jax.local_device_count()
+        # splitting computation across all available devices
+        self.num_envs_per_device = self.num_envs // num_devices
+        self.total_timesteps_per_device = self.total_timesteps // num_devices
+        self.eval_episodes_per_device = self.eval_episodes // num_devices
+        assert self.num_envs % num_devices == 0
+        self.num_updates = (
+            self.total_timesteps_per_device
+            // self.num_steps
+            // self.num_envs_per_device
+        )
+        print(f"Num devices: {num_devices}, Num updates: {self.num_updates}")
+
+
+@pyrallis.wrap()
+def train(config: TrainConfig):
+    # logging to wandb
+    run = wandb.init(
+        project=config.project,
+        group=config.group,
+        name=config.name,
+        config=asdict(config),
+        save_code=True,
     )
-    print(f"Num devices: {num_devices}, Num updates: {config["NUM_UPDATES"]}")
 
-    rng = jax.random.PRNGKey(30)
-    train_jit = jax.jit(make_train(config))
-    out = train_jit(rng)
+    rng, env, env_params, init_hstate, train_state = make_states(config)
+    # replicating args across devices
+    rng = jax.random.split(rng, num=jax.local_device_count())
+    train_state = replicate(train_state, jax.local_devices())
+    init_hstate = replicate(init_hstate, jax.local_devices())
+
+    print("Compiling...")
+    t = time.time()
+    train_fn = make_train(env, env_params, config)
+    train_fn = train_fn.lower(rng, train_state, init_hstate).compile()
+    elapsed_time = time.time() - t
+    print(f"Done in {elapsed_time:.2f}s.")
+
+    print("Training...")
+    t = time.time()
+    train_info = jax.block_until_ready(train_fn(rng, train_state, init_hstate))
+    elapsed_time = time.time() - t
+    print(f"Done in {elapsed_time:.2f}s")
+
+    print("Logging...")
+    loss_info = unreplicate(train_info["loss_info"])
+
+    total_transitions = 0
+    for i in range(config.num_updates):
+        # summing total transitions per update from all devices
+        total_transitions += (
+            config.num_steps * config.num_envs_per_device * jax.local_device_count()
+        )
+        info = jtu.tree_map(lambda x: x[i].item(), loss_info)
+        info["transitions"] = total_transitions
+        wandb.log(info)
+
+    run.summary["training_time"] = elapsed_time
+    run.summary["steps_per_second"] = (
+        config.total_timesteps_per_device * jax.local_device_count()
+    ) / elapsed_time
+
+    print("Final return: ", float(loss_info["eval/returns"][-1]))
+    run.finish()
+
+
+if __name__ == "__main__":
+    train()
+
+    # rng = jax.random.PRNGKey(30)
+    # train_jit = jax.jit(make_train(config))
+    # out = train_jit(rng)
+
+# config = {
+#     # "LR": 3e-4,
+
+#     # "NUM_ENVS": 2048,
+#     "NUM_STEPS": 10,
+#     "TOTAL_TIMESTEPS": 5e7,
+#     "UPDATE_EPOCHS": 4,
+#     "NUM_MINIBATCHES": 32,
+
+#     "GAMMA": 0.99,
+#     "GAE_LAMBDA": 0.95,
+#     "CLIP_EPS": 0.2,
+#     "ENT_COEF": 0.0,
+#     "VF_COEF": 0.5,
+#     "MAX_GRAD_NORM": 0.5,
+#     "ACTIVATION": "tanh",
+#     "ENV_NAME": "classic",
+#     "ANNEAL_LR": False,
+#     "NORMALIZE_ENV": True,
+#     "DEBUG": True,
+# }
+# num_devices = jax.local_device_count()
+# # splitting computation across all available devices
+# config["NUM_ENVS_PER_DEVICE"] = config["NUM_ENVS"] // num_devices
+# config["TOTAL_TIMESTEPS_PER_DEVICE"] = config["TOTAL_TIMESTEPS"] // num_devices
+# config["EVAL_EPISODES_PER_DEVICE"] = config["EVAL_EPISODES"] // num_devices
+# assert config["NUM_ENVS"] % num_devices == 0
+# config["NUM_UPDATES"] = (
+#     config["TOTAL_TIMESTEPS_PER_DEVICE"]
+#     // config["NUM_STEPS"]
+#     // config["NUM_ENVS_PER_DEVICE"]
+# )
+# print(f"Num devices: {num_devices}, Num updates: {config["NUM_UPDATES"]}")
