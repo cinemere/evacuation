@@ -5,6 +5,7 @@ from typing import Any, Dict, Tuple
 import jax
 import jax.numpy as jnp
 import jax.lax as lax
+import numpy as np
 
 
 from ..env import Environment
@@ -161,7 +162,9 @@ def grad_potential_pedestrians(
     alpha: float,
     eps: float,
 ) -> jnp.ndarray:
-    selected_positions = jnp.where(jnp.expand_dims(status_viscek, 1), pedestrians_positions, 0)
+    selected_positions = jnp.where(
+        jnp.expand_dims(status_viscek, 1), pedestrians_positions, 0
+    )
     R = jnp.expand_dims(agent_position, 0) - selected_positions
 
     def fn(R):
@@ -227,3 +230,20 @@ class GravityEncoding(ObservationWrapper):
             },
         }
         return extended_obs
+
+
+class FlattenObservation(ObservationWrapper):
+    def __init__(self, env):
+        super().__init__(env)
+        assert isinstance(
+            self._env.observation_shape, dict
+        ), "FlattenObservation wrapper works only with `dict` observation "\
+            f"space, however {type(self._env.observation_shape(None))=}."
+
+    def observation_shape(self, params=None):
+        shapes = self._env.observation_shape()
+        return sum(np.prod(val) for val in shapes.values())
+
+    def observation(self, params, timestep):
+        base_obs = timestep.observation
+        return jnp.concatenate([jnp.ravel(obs) for obs in base_obs.values()])
