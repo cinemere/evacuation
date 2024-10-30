@@ -75,12 +75,12 @@ def config_to_args(config):
 
 
 def main():
-    wandb.init(project="my-first-sweep")
+    wandb.init(project="evacuation-sweep-grid-search")
     config = TrainConfig(**wandb.config)
     config_args = config_to_args(config)
     sys.argv = sys.argv + config_args
     score = train()
-    wandb.log({"reward": score})
+    wandb.log({"episode_length": score})
 
 if __name__ == "__main__":
     main()

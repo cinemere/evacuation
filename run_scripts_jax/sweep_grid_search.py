@@ -1,6 +1,7 @@
 
 import wandb
 import yaml
+import os
 
 config_path = "run_scripts_jax/sweep_grid_search_config.yaml"
 wandb.login()
@@ -25,7 +26,6 @@ with open("run_scripts_jax/run_sweep.sh", "w") as file:
     file.write(bash_script_content)
 
 # Make it executable
-import os
 os.chmod("run_scripts_jax/run_sweep.sh", 0o755)
 
 print("Bash script 'run_sweep.sh' has been generated and is ready to use.")
