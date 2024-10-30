@@ -1,3 +1,4 @@
+#!/bin/bash
 export DEVICE="cpu"
 export WANDB_PROJECT="evacuation_june"
 export WANDB_ENTITY="albinakl"

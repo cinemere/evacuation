@@ -1,3 +1,4 @@
+#!/bin/bash
 common_args="-e false --init-reward-each-step=-1. --intrinsic-reward-coef 0 --enslaving-degree 1"
 
 # TODO: fix exp names in future runs! (test-stacking-NUM_STACKS-base-ORIGIN)

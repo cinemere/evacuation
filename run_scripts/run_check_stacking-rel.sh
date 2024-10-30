@@ -1,3 +1,4 @@
+#!/bin/bash
 common_args="-rel true -e false --init-reward-each-step=-1. --intrinsic-reward-coef 0 --enslaving-degree 1"
 
 query1="--exp-name test-stacking-2-rel-ppo --num-obs-stacks 2 --origin ppo ${common_args}"
