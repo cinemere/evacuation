@@ -2,7 +2,7 @@
 import wandb
 import yaml
 
-config_path = "experiments/sweep_grid_search_config.yaml"
+config_path = "run_scripts_jax/sweep_grid_search_config.yaml"
 wandb.login()
 
 
@@ -21,14 +21,14 @@ wandb agent {sweep_id}
 """
 
 # Save bash-script
-with open("experiments/run_sweep.sh", "w") as file:
+with open("run_scripts_jax/run_sweep.sh", "w") as file:
     file.write(bash_script_content)
 
 # Make it executable
 import os
-os.chmod("experiments/run_sweep.sh", 0o755)
+os.chmod("run_scripts_jax/run_sweep.sh", 0o755)
 
 print("Bash script 'run_sweep.sh' has been generated and is ready to use.")
 print("Run it on all devices with:")
-print("./experiments/run_sweep.sh")
+print("./run_scripts_jax/run_sweep.sh")
 
