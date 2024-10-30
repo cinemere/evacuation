@@ -1,0 +1,15 @@
+program: sweep_grid_search.py
+name: sweep_grid_demo
+method: grid
+metric:
+  goal: maximize  # или minimize в зависимости от задачи
+  name: reward    # или другая метрика, соответствующая вашей задаче
+parameters:
+  lr:
+    values: [0.0001,0.001] #, 0.01, 0.1]
+  num_minibatches:
+    values: [32, 64] #, 128]
+  gamma:
+    values: [0.9, 0.92] #, 0.94, 0.96, 0.98]  # фиксированные значения с шагом 0.02
+
+
