@@ -20,11 +20,11 @@ echo "Running wandb agent with sweep_id: {sweep_id}"
 wandb agent {sweep_id}
 """
 
-# Сохраняем bash-скрипт
+# Save bash-script
 with open("experiments/run_sweep.sh", "w") as file:
     file.write(bash_script_content)
 
-# Делаем его исполняемым
+# Make it executable
 import os
 os.chmod("experiments/run_sweep.sh", 0o755)
 

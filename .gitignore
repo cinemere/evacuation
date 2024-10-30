@@ -20,3 +20,4 @@ runs/
 
 # sandbox debug files
 test.py
+/run_sweep.sh
