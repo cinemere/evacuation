@@ -21,3 +21,4 @@ runs/
 # sandbox debug files
 test.py
 /run_sweep.sh
+/run_scripts_jax/run_sweep.sh
