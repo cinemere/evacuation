@@ -1,4 +1,4 @@
-program: sweep_grid_search.py
+program: experiments/run_training.py
 name: sweep_grid_demo
 method: grid
 metric:
