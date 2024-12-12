@@ -1,29 +1,15 @@
-# %%
-from __future__ import annotations
-import os 
-from dataclasses import dataclass
-from typing import Optional
-import jax
-
-import jax.numpy as jnp
-import flax.linen as nn
-from flax import struct
-
-import numpy as np
-import optax
-from flax.linen.initializers import constant, orthogonal
-from typing import Sequence, NamedTuple, Any
-from flax.training.train_state import TrainState
-import distrax
-
-# %%
-# Adapted from PureJaxRL implementation and minigrid baselines, source:
+# Adapted from XLand-minigrid baselines and PureJaxRL implementation and minigrid baselines, sources:
+# https://github.com/corl-team/xland-minigrid/blob/main/training/train_single_task.py
 # https://github.com/lupuandr/explainable-policies/blob/50acbd777dc7c6d6b8b7255cd1249e81715bcb54/purejaxrl/ppo_rnn.py#L4
 # https://github.com/lcswillems/rl-starter-files/blob/master/model.py
+
+from __future__ import annotations
+
+import os
+import sys
 import time
 from dataclasses import asdict, dataclass
 from functools import partial
-from typing import Optional
 
 import jax
 import jax.numpy as jnp
@@ -31,48 +17,36 @@ import jax.tree_util as jtu
 import optax
 import pyrallis
 import wandb
+from flax import struct
 from flax.jax_utils import replicate, unreplicate
 from flax.training.train_state import TrainState
-import sys
 
 # this will be default in new jax versions anyway
 jax.config.update("jax_threefry_partitionable", True)
 
 
-
 sys.path.append("/Users/Klepach/work/repo/tmp/evacuation/src")
-from env_jax.env.wrappers.purejaxrl_wrappers import (
-    LogWrapper,
-    VecEnv,
-    ClipAction,
-)
-from env_jax.env.wrappers.gym_wrappers import GymAutoResetWrapper
-
 #     NormalizeVecObservation,
 #     NormalizeVecReward,
 
-
 from env_jax.env.env import Environment, EnvParams
-
 from env_jax.env.wrappers import (
-    RelativePosition,
+    FlattenObservation,
+    GravityEncoding,
+    MatrixObsOheStates,
     PedestriansStatusesCat,
     PedestriansStatusesOhe,
-    MatrixObsOheStates,
-    GravityEncoding,
-    FlattenObservation,
+    RelativePosition,
+)
+from env_jax.env.wrappers.gym_wrappers import GymAutoResetWrapper
+from env_jax.env.wrappers.purejaxrl_wrappers import (
+    ClipAction,
+    LogWrapper,
+    VecEnv,
 )
 
-# %%
-# config = {
-#     "VF_COEF": 0.5,
-#     "MAX_GRAD_NORM": 0.5,
-#     "ACTIVATION": "tanh",
-#     "ENV_NAME": "classic",
-#     "ANNEAL_LR": False,
-#     "NORMALIZE_ENV": True,
-#     "DEBUG": True,
-# }
+from utils import *
+from network import *
 
 @dataclass
 class TrainConfig:
@@ -80,8 +54,10 @@ class TrainConfig:
     group: str = "default"
     name: str = "ppo-classic"
     env_id: str = "evacuation-vanila"
+
     # agent (probably we'd better use separate encoder for different instances of obseravation)
     hidden_dim: int = 256
+
     # training
     num_envs: int = 2048
     num_steps: int = 10  # 16  # ???
@@ -114,226 +90,6 @@ class TrainConfig:
             // self.num_envs_per_device
         )
         print(f"Num devices: {num_devices}, Num updates: {self.num_updates}")
-
-
-# %%
-class ActorCritic(nn.Module):
-    action_dim: Sequence[int]
-    activation: str = "tanh"
-    hidden_dim: int = 256
-
-    @nn.compact
-    def __call__(self, x):
-        if self.activation == "relu":
-            activation = nn.relu
-        else:
-            activation = nn.tanh
-
-        actor_mean = nn.Sequential(
-            [
-                nn.Dense(
-                    self.hidden_dim,
-                    kernel_init=orthogonal(np.sqrt(2)),
-                    bias_init=constant(0.0),
-                ),
-                activation,
-                nn.Dense(
-                    self.hidden_dim,
-                    kernel_init=orthogonal(np.sqrt(2)),
-                    bias_init=constant(0.0),
-                ),
-                activation,
-                nn.Dense(
-                    self.hidden_dim,
-                    kernel_init=orthogonal(0.01),
-                    bias_init=constant(0.0),
-                ),
-            ]
-        )
-        actor_logtstd = self.param("log_std", nn.initializers.zeros, (self.action_dim,))
-        critic = nn.Sequential(
-            [
-                nn.Dense(
-                    self.hidden_dim,
-                    kernel_init=orthogonal(np.sqrt(2)),
-                    bias_init=constant(0.0),
-                ),
-                activation,
-                nn.Dense(
-                    self.hidden_dim,
-                    kernel_init=orthogonal(np.sqrt(2)),
-                    bias_init=constant(0.0),
-                ),
-                activation,
-                nn.Dense(
-                    self.hidden_dim,
-                    kernel_init=orthogonal(1.0),
-                    bias_init=constant(0.0),
-                ),
-            ]
-        )
-
-        action_mean = actor_mean(x).astype(jnp.float32)
-        action_std = jnp.exp(actor_logtstd)
-
-        dist = distrax.MultivariateNormalDiag(action_mean, action_std)
-        values = critic(x)
-
-        return dist, jnp.squeeze(values, axis=-1)
-
-
-# %%
-# class Transition(NamedTuple):
-#     done: jnp.ndarray
-#     action: jnp.ndarray
-#     value: jnp.ndarray
-#     reward: jnp.ndarray
-#     log_prob: jnp.ndarray
-#     obs: jnp.ndarray
-#     info: jnp.ndarray
-
-
-class Transition(struct.PyTreeNode):
-    done: jnp.Array
-    action: jnp.Array
-    value: jnp.Array
-    reward: jnp.Array
-    log_prob: jnp.Array
-    # for obs
-    obs: jnp.Array
-    # dir: jax.Array
-    # info: jnp.ndarray
-    # prev_action: jax.Array
-    # prev_reward: jax.Array
-
-
-def calculate_gae(
-    transitions: Transition,
-    last_val: jax.Array,
-    gamma: float,
-    gae_lambda: float,
-) -> tuple[jax.Array, jax.Array]:
-    # single iteration for the loop
-    def _get_advantages(gae_and_next_value, transition):
-        gae, next_value = gae_and_next_value
-        delta = (
-            transition.reward
-            + gamma * next_value * (1 - transition.done)
-            - transition.value
-        )
-        gae = delta + gamma * gae_lambda * (1 - transition.done) * gae
-        return (gae, transition.value), gae
-
-    _, advantages = jax.lax.scan(
-        _get_advantages,
-        (jnp.zeros_like(last_val), last_val),
-        transitions,
-        reverse=True,
-        # unroll=16  TODO why we comment this?
-    )
-    # advantages and values (Q)
-    return advantages, advantages + transitions.value
-
-
-# %%
-def ppo_update_networks(
-    train_state: TrainState,
-    transitions: Transition,
-    # init_hstate: jax.Array,
-    advantages: jax.Array,
-    targets: jax.Array,
-    clip_eps: float,
-    vf_coef: float,
-    ent_coef: float,
-):
-    # NORMALIZE ADVANTAGES
-    advantages = (advantages - advantages.mean()) / (advantages.std() + 1e-8)
-
-    def _loss_fn(params):
-        # RERUN NETWORK
-        dist, value, _ = train_state.apply_fn(params, transitions.obs)
-        log_prob = dist.log_prob(transitions.action)
-
-        # CALCULATE VALUE LOSS
-        value_pred_clipped = transitions.value + (value - transitions.value).clip(
-            -clip_eps, clip_eps
-        )
-        value_loss = jnp.square(value - targets)
-        value_loss_clipped = jnp.square(value_pred_clipped - targets)
-        value_loss = 0.5 * jnp.maximum(value_loss, value_loss_clipped).mean()
-
-        # TODO: ablate this!
-        # value_loss = jnp.square(value - targets).mean()
-
-        # CALCULATE ACTOR LOSS
-        ratio = jnp.exp(log_prob - transitions.log_prob)
-        actor_loss1 = advantages * ratio
-        actor_loss2 = advantages * jnp.clip(ratio, 1.0 - clip_eps, 1.0 + clip_eps)
-        actor_loss = -jnp.minimum(actor_loss1, actor_loss2).mean()
-        entropy = dist.entropy().mean()
-
-        total_loss = actor_loss + vf_coef * value_loss - ent_coef * entropy
-        return total_loss, (value_loss, actor_loss, entropy)
-
-    (loss, (vloss, aloss, entropy)), grads = jax.value_and_grad(_loss_fn, has_aux=True)(
-        train_state.params
-    )
-    (loss, vloss, aloss, entropy, grads) = jax.lax.pmean(
-        (loss, vloss, aloss, entropy, grads), axis_name="devices"
-    )
-    train_state = train_state.apply_gradients(grads=grads)
-    update_info = {
-        "total_loss": loss,
-        "value_loss": vloss,
-        "actor_loss": aloss,
-        "entropy": entropy,
-    }
-    return train_state, update_info
-
-
-# %%
-# for evaluation (evaluate for N consecutive episodes, sum rewards)
-# N=1 single task, N>1 for meta-RL
-class RolloutStats(struct.PyTreeNode):
-    reward: jax.Array = jnp.asarray(0.0)
-    length: jax.Array = jnp.asarray(0)
-    episodes: jax.Array = jnp.asarray(0)
-
-
-def rollout(
-    rng: jax.Array,
-    env: Environment,
-    env_params: EnvParams,
-    train_state: TrainState,
-    num_consecutive_episodes: int = 1,
-) -> RolloutStats:
-    """Collect eval statistics."""
-    def _cond_fn(carry):
-        rng, stats, timestep = carry
-        return jnp.less(stats.episodes, num_consecutive_episodes)
-
-    def _body_fn(carry):
-        rng, stats, timestep = carry
-
-        rng, _rng = jax.random.split(rng)
-        dist, _ = train_state.apply_fn(
-            train_state.params, timestep.observation[None, None, ...]
-        )
-        action = dist.sample(seed=_rng).squeeze()
-        timestep = env.step(env_params, timestep, action)
-
-        stats = stats.replace(
-            reward=stats.reward + timestep.reward,
-            length=stats.length + 1,
-            episodes=stats.episodes + timestep.last(),
-        )
-        carry = (rng, stats, timestep, action, timestep.reward)
-        return carry
-
-    timestep = env.reset(env_params, rng)
-    init_carry = (rng, RolloutStats(), timestep)
-    final_carry = jax.lax.while_loop(_cond_fn, _body_fn, init_val=init_carry)
-    return final_carry[1]
 
 
 # %%
