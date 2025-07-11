@@ -2,23 +2,15 @@
 
 RL environment to study the evacuation of pedestrians for dimly rooms.
 
-## Learning curves for [stable-baselines3](https://github.com/DLR-RM/stable-baselines3/tree/master) PPO agent
-
-[wandb report: smoothed learning curves](https://wandb.ai/albinakl/evacuation/reports/Smoothed-runs-for-paper--Vmlldzo2MTY2MDU0?accessToken=kg5mc3vg9iaukjbgm5t2giijxk95uklzupdkjhiltspgz9epg5ly7s0280lc0def)
-
-![image](https://github.com/cinemere/evacuation/assets/55746414/989d0183-94ae-421a-b42d-018cafa80fbb)
-![image](https://github.com/cinemere/evacuation/assets/55746414/ea2a1a7b-071a-4eb2-b352-02be2edac7df)
-
-[wandb report: comparing rewards study](https://wandb.ai/albinakl/evacuation/reports/Comparing-rewards--Vmlldzo1OTgxMTMw?accessToken=5wgmelubk2p1ws14i22zewpifo00n4dmer1i0uq4db4lhb4231qujrklwzu7bcsp)
-
 ## Examples of trajectories
 
 | Comments | Strict leader <br> (enslaving degree = 1.0) | Calm leader <br>  (enslaving degree < 1.0) |
 | --- | --- | --- |
-| exitrew & followrew | ![Alt text](static/n60_grademb_exitrew_followrew_intrrew-1._initrew-0._alpha-5_noise-.5_ensldegree-1._n-60_lr-0.0003_gamma-0.99_s-gra_a-5.0_ss-0.01_vr-0.1_01-Nov-00-08-40_ep-2000.gif)  <br> After saving a big group of pedestrians, leader helped 2 groups of lost pedestrians to find the way to exit | ![Alt text](static/n60_grademb_exitrew_followrew_intrrew-0._initrew--1._alpha-2_noise-.2_ensldegree-.5_n-60_lr-0.0003_gamma-0.99_s-gra_a-2.0_ss-0.01_vr-0.1_12-Nov-18-30-06_ep-2000.gif) <br> Leader tends to work with big groups of pedestrians and navigates them to exit zone |
-| only exitrew | ![Alt text](static/n60_grademb_exitrew_nofollowrew_intrrew-0._initrew-0._alpha-2_noise-.2_ensldegree-1._n-60_lr-0.0003_gamma-0.99_s-gra_a-2.0_ss-0.01_vr-0.1_01-Nov-02-16-56_ep-2000.gif) <br> At the beginning of the episode leader helps pedestrians near exit and it the end finds the lost ones left far from exit | ![Alt text](static/n60_grademb_exitrew_nofollowrew_intrrew-0._initrew-0._alpha-4_noise-.5_ensldegree-.1_n-60_lr-0.0003_gamma-0.99_s-gra_a-4.0_ss-0.01_vr-0.1_01-Nov-09-37-54_ep-1500.gif) <br> Here we can see how pedestrians navigate themselves based on the directions of their neighbours. Leader is trying to collect big group to navigate it to exit. |
-| only exitrew | ![Alt text](static/n60_grademb_exitrew_nofollowrew_intrrew-1._initrew-0._alpha-2_noise-.2_ensldegree-1._n-60_lr-0.0003_gamma-0.99_s-gra_a-2.0_ss-0.01_vr-0.1_01-Nov-14-55-25_ep-2000.gif) <br> Due to need to escort pedestrians to exit zone, leader tries to collect as much pedestrians as he can on his first reach of exit.| ![Alt text](static/n60_grademb_exitrew_nofollowrew_intrrew-1._initrew-0._alpha-2_noise-.2_ensldegree-.5_n-60_lr-0.0003_gamma-0.99_s-gra_a-2.0_ss-0.01_vr-0.1_01-Nov-14-55-25_ep-2000.gif) <br> Sometimes pedestrians can suddenly panic and try to move in bad direction. Leader mey try to return them or catch all close ones.|
-|only followers reward|![Alt text](static/n60_grademb_noexitrew_followrew_intrrew-1._initrew-0._alpha-5_noise-.2_ensldegree-1._n-60_lr-0.0003_gamma-0.99_s-gra_a-5.0_ss-0.01_vr-0.1_03-Nov-04-20-47_ep-2000.gif) <br> Even when leader is not given the reward for pedestrians reaching exit zone, he tries to escort them to exit asap.||
+| exitrew & followrew | <img src="static/n60_grademb_exitrew_followrew_intrrew-1._initrew-0._alpha-5_noise-.5_ensldegree-1._n-60_lr-0.0003_gamma-0.99_s-gra_a-5.0_ss-0.01_vr-0.1_01-Nov-00-08-40_ep-2000.gif" width="400">  <br> After saving a big group of pedestrians, leader helped 2 groups of lost pedestrians to find the way to exit |  <img src="static/n60_grademb_exitrew_followrew_intrrew-0._initrew--1._alpha-2_noise-.2_ensldegree-.5_n-60_lr-0.0003_gamma-0.99_s-gra_a-2.0_ss-0.01_vr-0.1_12-Nov-18-30-06_ep-2000.gif" width="400"> <br> Leader tends to work with big groups of pedestrians and navigates them to exit zone |
+| only exitrew |  <img src="static/n60_grademb_exitrew_nofollowrew_intrrew-0._initrew-0._alpha-2_noise-.2_ensldegree-1._n-60_lr-0.0003_gamma-0.99_s-gra_a-2.0_ss-0.01_vr-0.1_01-Nov-02-16-56_ep-2000.gif" width="400"> <br> At the beginning of the episode leader helps pedestrians near exit and it the end finds the lost ones left far from exit |  <img src="static/n60_grademb_exitrew_nofollowrew_intrrew-0._initrew-0._alpha-4_noise-.5_ensldegree-.1_n-60_lr-0.0003_gamma-0.99_s-gra_a-4.0_ss-0.01_vr-0.1_01-Nov-09-37-54_ep-1500.gif" width="400"> <br> Here we can see how pedestrians navigate themselves based on the directions of their neighbours. Leader is trying to collect big group to navigate it to exit. |
+| only exitrew |  <img src="static/n60_grademb_exitrew_nofollowrew_intrrew-1._initrew-0._alpha-2_noise-.2_ensldegree-1._n-60_lr-0.0003_gamma-0.99_s-gra_a-2.0_ss-0.01_vr-0.1_01-Nov-14-55-25_ep-2000.gif" width="400"> <br> Due to need to escort pedestrians to exit zone, leader tries to collect as much pedestrians as he can on his first reach of exit.|  <img src="static/n60_grademb_exitrew_nofollowrew_intrrew-1._initrew-0._alpha-2_noise-.2_ensldegree-.5_n-60_lr-0.0003_gamma-0.99_s-gra_a-2.0_ss-0.01_vr-0.1_01-Nov-14-55-25_ep-2000.gif" width="400"> <br> Sometimes pedestrians can suddenly panic and try to move in bad direction. Leader mey try to return them or catch all close ones.|
+|only followers reward|  <img src="static/n60_grademb_noexitrew_followrew_intrrew-1._initrew-0._alpha-5_noise-.2_ensldegree-1._n-60_lr-0.0003_gamma-0.99_s-gra_a-5.0_ss-0.01_vr-0.1_03-Nov-04-20-47_ep-2000.gif" width="400"> <br> Even when leader is not given the reward for pedestrians reaching exit zone, he tries to escort them to exit asap.||
+
 
 
 ## Installation
@@ -286,7 +278,7 @@ usage: main.py [-h] [OPTIONS] [{model:sb-config,model:clean-rl-config,model:type
 ╰───────────────────────────────────────────────────────────────────────────────────────╯
 ```
 
-### Outputs
+## Outputs
 
 Outputs are to be saved in following directories / files:
 
@@ -301,3 +293,28 @@ Outputs are to be saved in following directories / files:
   **Example of logging of conducted experiment**
 
 ![image](static/wandb_screenshot.png)
+
+### Learning curves for [stable-baselines3](https://github.com/DLR-RM/stable-baselines3/tree/master) PPO agent
+
+![image](https://github.com/cinemere/evacuation/assets/55746414/989d0183-94ae-421a-b42d-018cafa80fbb)
+![image](https://github.com/cinemere/evacuation/assets/55746414/ea2a1a7b-071a-4eb2-b352-02be2edac7df)
+
+[wandb report: smoothed learning curves](https://wandb.ai/albinakl/evacuation/reports/Smoothed-runs-for-paper--Vmlldzo2MTY2MDU0?accessToken=kg5mc3vg9iaukjbgm5t2giijxk95uklzupdkjhiltspgz9epg5ly7s0280lc0def)
+
+[wandb report: comparing rewards study](https://wandb.ai/albinakl/evacuation/reports/Comparing-rewards--Vmlldzo1OTgxMTMw?accessToken=5wgmelubk2p1ws14i22zewpifo00n4dmer1i0uq4db4lhb4231qujrklwzu7bcsp)
+
+
+### Learning curves for different methods
+
+| Episode length | Episode reward |
+| --- | --- |
+| <img src="static/final_plots/length-exp_name-15.png" width="400"> | <img src="static/final_plots/reward-exp_name-15.png" width="400"> |
+| <img src="static/final_plots/length-exp_name-60.png" width="400"> | <img src="static/final_plots/reward-exp_name-60.png" width="400"> |
+
+
+### Learning curves for varying $\alpha$ in gradient embedding
+
+| Episode length | Episode reward |
+| --- | --- |
+| <img src="static/final_plots/length-alpha-15.png" width="400"> | <img src="static/final_plots/reward-alpha-15.png" width="400"> |
+| <img src="static/final_plots/length-alpha-60.png" width="400"> | <img src="static/final_plots/reward-alpha-60.png" width="400"> |
