@@ -1,6 +1,12 @@
-# evacuation
+# 🚨 Evacuation: Reinforcement Learning for Crowd Evacuation
 
-RL environment to study the evacuation of pedestrians for dimly rooms.
+[![arXiv](https://img.shields.io/badge/arXiv-2509.19972-b31b1b.svg)](https://arxiv.org/abs/2509.19972)
+[![License](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE) <!-- optional -->
+
+A reinforcement learning (RL) environment to study the evacuation of pedestrians in dimly lit or low-visibility rooms. This repository contains the official implementation of the method described in:
+
+> **An effective control of large systems of active particles: An application to evacuation problem**  
+> [arXiv:2509.19972](https://arxiv.org/abs/2509.19972) | [PDF](https://arxiv.org/pdf/2509.19972)
 
 ## Examples of trajectories
 
